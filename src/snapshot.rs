@@ -11,7 +11,7 @@ use fallible_iterator::FallibleIterator;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::{Shadow, ShadowPath};
+use crate::{exit_ok, Shadow, ShadowPath};
 
 const TAKE_SNAPSHOT_SCRIPT: &'static [u8] = include_bytes!("../scripts/take-snapshot.bash");
 
@@ -23,7 +23,7 @@ impl<'a> Snapshot<'a> {
     const FILES: &'static [&'static str] =
         &["subject.txt", "sha256sum.txt", "nodes", "files", "digests"];
 
-    pub fn new(path: &'a Path) -> Snapshot {
+    pub fn new(path: &'a Path) -> Snapshot<'a> {
         Self { path }
     }
 
@@ -51,14 +51,15 @@ impl<'a> Snapshot<'a> {
     }
 
     pub fn take(&self, subject: &Path) -> Result<()> {
-        Command::new("bash")
-            .arg("-c")
-            .arg(OsStr::from_bytes(TAKE_SNAPSHOT_SCRIPT))
-            .arg("--")
-            .arg(subject)
-            .arg(&self.path)
-            .status()?
-            .exit_ok()?;
+        exit_ok(
+            Command::new("bash")
+                .arg("-c")
+                .arg(OsStr::from_bytes(TAKE_SNAPSHOT_SCRIPT))
+                .arg("--")
+                .arg(subject)
+                .arg(&self.path)
+                .status()?,
+        )?;
         Ok(())
     }
 
@@ -151,7 +152,7 @@ impl<T: io::BufRead> FallibleIterator for NodesEntries<T> {
             .unwrap();
         }
         let mut buf = vec![];
-        if !self.reader.has_data_left()? {
+        if self.reader.fill_buf()?.is_empty() {
             return Ok(None);
         }
         // TODO handle malformed input
@@ -195,7 +196,7 @@ impl<T: io::BufRead> FallibleIterator for DigestsEntries<T> {
                 Regex::new(r"^(?P<digest>[a-z0-9]{64}|[?]{64}) \*(?P<path>.*)\x00\n$").unwrap();
         }
         let mut buf = vec![];
-        if !self.reader.has_data_left()? {
+        if self.reader.fill_buf()?.is_empty() {
             return Ok(None);
         }
         // TODO handle malformed input

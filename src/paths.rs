@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::{self, FromStr};
 
+use itertools::Itertools;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -63,8 +64,7 @@ impl ShadowPath {
         self.components()
             .iter()
             .map(ShadowTreeEntryName::encode_child)
-            .intersperse("/".to_owned())
-            .collect()
+            .join("/")
     }
 
     pub fn encode_marker(&self) -> String {
@@ -72,17 +72,13 @@ impl ShadowPath {
             .iter()
             .map(ShadowTreeEntryName::encode_child)
             .chain([ShadowTreeEntryName::encode_marker()])
-            .intersperse("/".to_owned())
-            .collect()
+            .join("/")
     }
 }
 
 impl fmt::Display for ShadowPath {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        for chunk in self.components().iter().map(AsRef::as_ref).intersperse("/") {
-            write!(fmt, "{}", chunk)?;
-        }
-        Ok(())
+        write!(fmt, "{}", self.components().iter().format("/"))
     }
 }
 

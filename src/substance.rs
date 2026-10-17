@@ -5,11 +5,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{anyhow, Result};
+use digest_io::IoWrapper;
 use lazy_static::lazy_static;
 use regex::bytes::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::ContentSha256;
+use crate::{exit_ok, ContentSha256};
 
 pub trait Substance {
     fn blob_path(&self, blob: &ContentSha256) -> PathBuf;
@@ -156,7 +157,7 @@ pub fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
         .stderr(Stdio::inherit())
         .output()
         .unwrap();
-    output.status.exit_ok()?;
+    exit_ok(output.status)?;
     // use std::os::unix::ffi::OsStrExt;
     // eprintln!("{:?}", std::ffi::OsStr::from_bytes(&output.stdout));
     let caps = RE
@@ -168,9 +169,9 @@ pub fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
 #[allow(dead_code)]
 pub fn sha256sum_rust(path: &Path) -> Result<ContentSha256> {
     let mut file = OpenOptions::new().read(true).open(path)?;
-    let mut hasher = Sha256::new();
+    let mut hasher = IoWrapper(Sha256::new());
     io::copy(&mut file, &mut hasher)?;
-    let hash = hasher.finalize();
+    let hash = hasher.0.finalize();
     Ok(ContentSha256::from_slice(&hash))
 }
 

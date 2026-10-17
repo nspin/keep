@@ -1,7 +1,3 @@
-#![feature(buf_read_has_data_left)]
-#![feature(exit_status_error)]
-#![feature(iter_intersperse)]
-
 mod paths;
 mod shadow;
 mod substance;
@@ -38,3 +34,8 @@ pub use crate::{
         cli_main,
     },
 };
+
+pub(crate) fn exit_ok(status: std::process::ExitStatus) -> anyhow::Result<()> {
+    anyhow::ensure!(status.success(), "process exited unsuccessfully: {}", status);
+    Ok(())
+}

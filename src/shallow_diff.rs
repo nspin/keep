@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::str::{self, Utf8Error};
 
 use git2::{Error, FileMode, Oid, Repository, TreeEntry, TreeIter};
+use itertools::Itertools;
 
 pub struct ShallowDifference<'a> {
     pub parent: &'a [Vec<u8>],
@@ -34,8 +35,7 @@ impl<'a> ShallowDifference<'a> {
             .map(AsRef::as_ref)
             .chain([self.name])
             .map(str::from_utf8)
-            .intersperse(Ok("/"))
-            .collect::<Result<String, Utf8Error>>()
+            .process_results(|mut components| components.join("/"))
     }
 }
 

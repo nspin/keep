@@ -3,7 +3,7 @@ use std::process::Command;
 use anyhow::{Error, Result};
 use git2::{Commit, Oid, Repository, Signature, Tree};
 
-use crate::{shallow_diff, ShallowDifference};
+use crate::{exit_ok, shallow_diff, ShallowDifference};
 
 mod append;
 mod remove;
@@ -46,7 +46,7 @@ impl Database {
             cmd.arg(arg.as_ref());
         }
         eprintln!("{:?}", cmd);
-        cmd.status()?.exit_ok()?;
+        exit_ok(cmd.status()?)?;
         Ok(())
     }
 

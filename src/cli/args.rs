@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::string::ToString;
 
 use anyhow::{anyhow, Result};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command as ClapCommand};
 
 use crate::ShadowPath;
 
@@ -81,139 +81,142 @@ pub enum Command {
     },
 }
 
-fn app<'a, 'b>() -> App<'a, 'b> {
-    App::new("")
+fn app() -> ClapCommand {
+    ClapCommand::new("keep")
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("git-dir")
+            Arg::new("git-dir")
                 .long("git-dir")
                 .value_name("GIT_DIR")
-                .takes_value(true),
+                .action(ArgAction::Set),
         )
         .arg(
-            Arg::with_name("substance-dir")
+            Arg::new("substance-dir")
                 .long("substance-dir")
                 .value_name("SUBSTANCE_DIR")
-                .takes_value(true),
+                .action(ArgAction::Set),
         )
         .arg(
-            Arg::with_name("v")
-                .short("v")
-                .multiple(true)
+            Arg::new("v")
+                .short('v')
+                .action(ArgAction::Count)
                 .help("Sets the verbosity level (supply more than once for increased verbosity)"),
         )
         .arg(
-            Arg::with_name("read-only")
+            Arg::new("read-only")
                 .long("ro")
+                .action(ArgAction::SetTrue)
                 .help("Constrains execution to read-only operations."),
         )
         .subcommand(
-            SubCommand::with_name("snapshot")
+            ClapCommand::new("snapshot")
                 .arg(
-                    Arg::with_name("force")
+                    Arg::new("force")
                         .long("force")
-                        .short("f")
+                        .short('f')
+                        .action(ArgAction::SetTrue)
                         .help("Replace RELATIVE_PATH if it exists."),
                 )
                 .arg(
-                    Arg::with_name("remove_after")
-                        .long("--rm")
+                    Arg::new("remove_after")
+                        .long("rm")
+                        .action(ArgAction::SetTrue)
                         .help("Remove snapshot afterwards if success."),
                 )
                 .arg(
-                    Arg::with_name("snapshot_dir")
-                        .long("--snapshot-dir")
-                        .short("-d")
+                    Arg::new("snapshot_dir")
+                        .long("snapshot-dir")
+                        .short('d')
                         .value_name("SNAPSHOT_DIR")
                         .default_value("tmp.snapshot")
-                        .takes_value(true),
+                        .action(ArgAction::Set),
                 )
-                .arg(Arg::with_name("SUBJECT").required(true).index(1))
-                .arg(Arg::with_name("RELATIVE_PATH").required(true).index(2)),
+                .arg(Arg::new("SUBJECT").required(true).index(1))
+                .arg(Arg::new("RELATIVE_PATH").required(true).index(2)),
         )
         .subcommand(
-            SubCommand::with_name("mount")
-                .arg(Arg::with_name("MOUNTPOINT").required(true).index(1))
-                .arg(Arg::with_name("TREE").default_value("HEAD").index(2))
-                .arg(Arg::with_name("uid")
-                    .long("--uid")
-                    .short("-u")
-                    .value_name("UID")
-                    .default_value("0")
-                    .takes_value(true)
+            ClapCommand::new("mount")
+                .arg(Arg::new("MOUNTPOINT").required(true).index(1))
+                .arg(Arg::new("TREE").default_value("HEAD").index(2))
+                .arg(
+                    Arg::new("uid")
+                        .long("uid")
+                        .short('u')
+                        .value_name("UID")
+                        .default_value("0")
+                        .action(ArgAction::Set),
                 )
-                .arg(Arg::with_name("gid")
-                    .long("--gid")
-                    .short("-g")
-                    .value_name("GID")
-                    .default_value("0")
-                    .takes_value(true)
+                .arg(
+                    Arg::new("gid")
+                        .long("gid")
+                        .short('g')
+                        .value_name("GID")
+                        .default_value("0")
+                        .action(ArgAction::Set),
                 ),
         )
         .subcommand(
-            SubCommand::with_name("diff")
-                .arg(Arg::with_name("TREE_A").index(1))
-                .arg(Arg::with_name("TREE_B").index(2))
-                .help("Default: HEAD _ or HEAD^ HEAD."),
+            ClapCommand::new("diff")
+                .arg(Arg::new("TREE_A").index(1))
+                .arg(Arg::new("TREE_B").index(2))
+                .about("Default: HEAD _ or HEAD^ HEAD."),
         )
         .subcommand(
-            SubCommand::with_name("check")
-                .arg(Arg::with_name("TREE").default_value("HEAD").index(1)),
+            ClapCommand::new("check").arg(Arg::new("TREE").default_value("HEAD").index(1)),
         )
         .subcommand(
-            SubCommand::with_name("unique-blobs")
-                .arg(Arg::with_name("TREE").default_value("HEAD").index(1)),
+            ClapCommand::new("unique-blobs").arg(Arg::new("TREE").default_value("HEAD").index(1)),
         )
         .subcommand(
-            SubCommand::with_name("check-blobs")
-                .arg(Arg::with_name("TREE").default_value("HEAD").index(1))
-                .arg(Arg::with_name("deep").long("--deep")),
+            ClapCommand::new("check-blobs")
+                .arg(Arg::new("TREE").default_value("HEAD").index(1))
+                .arg(Arg::new("deep").long("deep").action(ArgAction::SetTrue)),
+        )
+        .subcommand(ClapCommand::new("sha256sum").arg(Arg::new("PATH").required(true).index(1)))
+        .subcommand(
+            ClapCommand::new("take-snapshot")
+                .arg(Arg::new("SUBJECT").required(true).index(1))
+                .arg(Arg::new("OUT").required(true).index(2)),
         )
         .subcommand(
-            SubCommand::with_name("sha256sum").arg(Arg::with_name("PATH").required(true).index(1)),
+            ClapCommand::new("plant-snapshot")
+                .arg(Arg::new("SNAPSHOT").required(true).index(1)),
         )
         .subcommand(
-            SubCommand::with_name("take-snapshot")
-                .arg(Arg::with_name("SUBJECT").required(true).index(1))
-                .arg(Arg::with_name("OUT").required(true).index(2)),
+            ClapCommand::new("store-snapshot")
+                .arg(Arg::new("TREE").required(true).index(1))
+                .arg(Arg::new("SUBJECT").required(true).index(2)),
         )
         .subcommand(
-            SubCommand::with_name("plant-snapshot")
-                .arg(Arg::with_name("SNAPSHOT").required(true).index(1)),
-        )
-        .subcommand(
-            SubCommand::with_name("store-snapshot")
-                .arg(Arg::with_name("TREE").required(true).index(1))
-                .arg(Arg::with_name("SUBJECT").required(true).index(2)),
-        )
-        .subcommand(
-            SubCommand::with_name("append")
+            ClapCommand::new("append")
                 .arg(
-                    Arg::with_name("force")
+                    Arg::new("force")
                         .long("force")
-                        .short("f")
+                        .short('f')
+                        .action(ArgAction::SetTrue)
                         .help("Replace RELATIVE_PATH if it exists."),
                 )
-                .arg(Arg::with_name("MODE").required(true).index(1))
-                .arg(Arg::with_name("OBJECT").required(true).index(2))
-                .arg(Arg::with_name("RELATIVE_PATH").required(true).index(3))
-                .arg(Arg::with_name("BIG_TREE").default_value("HEAD").index(4)),
+                .arg(Arg::new("MODE").required(true).index(1))
+                .arg(Arg::new("OBJECT").required(true).index(2))
+                .arg(Arg::new("RELATIVE_PATH").required(true).index(3))
+                .arg(Arg::new("BIG_TREE").default_value("HEAD").index(4)),
         )
         .subcommand(
-            SubCommand::with_name("remove")
-                .arg(Arg::with_name("RELATIVE_PATH").required(true).index(1))
-                .arg(Arg::with_name("BIG_TREE").default_value("HEAD").index(2)),
+            ClapCommand::new("remove")
+                .arg(Arg::new("RELATIVE_PATH").required(true).index(1))
+                .arg(Arg::new("BIG_TREE").default_value("HEAD").index(2)),
         )
         .subcommand(
-            SubCommand::with_name("add-to-index")
-                .arg(Arg::with_name("MODE").required(true).index(1))
-                .arg(Arg::with_name("TREE").required(true).index(2))
-                .arg(Arg::with_name("RELATIVE_PATH").required(true).index(3)),
+            ClapCommand::new("add-to-index")
+                .arg(Arg::new("MODE").required(true).index(1))
+                .arg(Arg::new("TREE").required(true).index(2))
+                .arg(Arg::new("RELATIVE_PATH").required(true).index(3)),
         )
 }
 
 impl Args {
     pub fn get() -> Result<Self> {
-        Self::match_(app().get_matches_safe()?)
+        Self::match_(app().get_matches())
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -222,20 +225,18 @@ impl Args {
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        Self::match_(app().get_matches_from_safe(args)?)
+        Self::match_(app().try_get_matches_from(args)?)
     }
 
-    fn match_<'a>(matches: ArgMatches<'a>) -> Result<Self> {
-        let git_dir = matches
-            .value_of("git-dir")
+    fn match_(matches: ArgMatches) -> Result<Self> {
+        let git_dir = value(&matches, "git-dir")
             .map(PathBuf::from)
             .or_else(|| path_from_env(ENV_GIT_DIR));
-        let substance_dir = matches
-            .value_of("substance-dir")
+        let substance_dir = value(&matches, "substance-dir")
             .map(PathBuf::from)
             .or_else(|| path_from_env(ENV_SUBSTANCE_DIR));
-        let read_only = matches.is_present("read-only");
-        let verbosity = matches.occurrences_of("v");
+        let read_only = matches.get_flag("read-only");
+        let verbosity = u64::from(matches.get_count("v"));
 
         let ensure_git_dir = || {
             if git_dir.is_none() {
@@ -257,25 +258,25 @@ impl Args {
             ensure_git_dir()?;
             ensure_substance_dir()?;
             Command::Snapshot {
-                subject: submatches.value_of("SUBJECT").unwrap().parse()?,
-                relative_path: submatches.value_of("RELATIVE_PATH").unwrap().parse()?,
-                force: submatches.is_present("force"),
-                remove_after: submatches.is_present("remove_after"),
-                snapshot_dir: submatches.value_of("snapshot_dir").unwrap().parse()?,
+                subject: value(submatches, "SUBJECT").unwrap().parse()?,
+                relative_path: value(submatches, "RELATIVE_PATH").unwrap().parse()?,
+                force: submatches.get_flag("force"),
+                remove_after: submatches.get_flag("remove_after"),
+                snapshot_dir: value(submatches, "snapshot_dir").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("mount") {
             ensure_git_dir()?;
             ensure_substance_dir()?;
             Command::Mount {
-                mountpoint: submatches.value_of("MOUNTPOINT").unwrap().parse()?,
-                tree: submatches.value_of("TREE").unwrap().to_string(),
-                uid: submatches.value_of("uid").unwrap().parse()?,
-                gid: submatches.value_of("gid").unwrap().parse()?,
+                mountpoint: value(submatches, "MOUNTPOINT").unwrap().parse()?,
+                tree: value(submatches, "TREE").unwrap().to_string(),
+                uid: value(submatches, "uid").unwrap().parse()?,
+                gid: value(submatches, "gid").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("diff") {
             ensure_git_dir()?;
             let (tree_a, tree_b) =
-                match (submatches.value_of("TREE_A"), submatches.value_of("TREE_B")) {
+                match (value(submatches, "TREE_A"), value(submatches, "TREE_B")) {
                     (None, None) => ("HEAD^", "HEAD"),
                     (Some(tree_a), None) => ("HEAD", tree_a),
                     (Some(tree_a), Some(tree_b)) => (tree_a, tree_b),
@@ -288,62 +289,62 @@ impl Args {
         } else if let Some(submatches) = matches.subcommand_matches("check") {
             ensure_git_dir()?;
             Command::Check {
-                tree: submatches.value_of("TREE").unwrap().to_string(),
+                tree: value(submatches, "TREE").unwrap().to_string(),
             }
         } else if let Some(submatches) = matches.subcommand_matches("unique-blobs") {
             ensure_git_dir()?;
             Command::UniqueBlobs {
-                tree: submatches.value_of("TREE").unwrap().to_string(),
+                tree: value(submatches, "TREE").unwrap().to_string(),
             }
         } else if let Some(submatches) = matches.subcommand_matches("check-blobs") {
             ensure_git_dir()?;
             ensure_substance_dir()?;
             Command::CheckBlobs {
-                tree: submatches.value_of("TREE").unwrap().to_string(),
-                deep: submatches.is_present("deep"),
+                tree: value(submatches, "TREE").unwrap().to_string(),
+                deep: submatches.get_flag("deep"),
             }
         } else if let Some(submatches) = matches.subcommand_matches("sha256sum") {
             Command::Sha256Sum {
-                path: submatches.value_of("PATH").unwrap().parse()?,
+                path: value(submatches, "PATH").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("take-snapshot") {
             Command::TakeSnapshot {
-                subject: submatches.value_of("SUBJECT").unwrap().parse()?,
-                out: submatches.value_of("OUT").unwrap().parse()?,
+                subject: value(submatches, "SUBJECT").unwrap().parse()?,
+                out: value(submatches, "OUT").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("plant-snapshot") {
             ensure_git_dir()?;
             Command::PlantSnapshot {
-                snapshot: submatches.value_of("SNAPSHOT").unwrap().parse()?,
+                snapshot: value(submatches, "SNAPSHOT").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("store-snapshot") {
             ensure_git_dir()?;
             ensure_substance_dir()?;
             Command::StoreSnapshot {
-                tree: submatches.value_of("TREE").unwrap().parse()?,
-                subject: submatches.value_of("SUBJECT").unwrap().parse()?,
+                tree: value(submatches, "TREE").unwrap().parse()?,
+                subject: value(submatches, "SUBJECT").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("append") {
             ensure_git_dir()?;
             Command::Append {
-                big_tree: submatches.value_of("BIG_TREE").unwrap().parse()?,
-                relative_path: submatches.value_of("RELATIVE_PATH").unwrap().parse()?,
-                mode: submatches.value_of("MODE").unwrap().parse()?,
-                object: submatches.value_of("OBJECT").unwrap().parse()?,
-                force: submatches.is_present("force"),
+                big_tree: value(submatches, "BIG_TREE").unwrap().parse()?,
+                relative_path: value(submatches, "RELATIVE_PATH").unwrap().parse()?,
+                mode: value(submatches, "MODE").unwrap().parse()?,
+                object: value(submatches, "OBJECT").unwrap().parse()?,
+                force: submatches.get_flag("force"),
             }
         } else if let Some(submatches) = matches.subcommand_matches("remove") {
             ensure_git_dir()?;
             Command::Remove {
-                big_tree: submatches.value_of("BIG_TREE").unwrap().parse()?,
-                relative_path: submatches.value_of("RELATIVE_PATH").unwrap().parse()?,
+                big_tree: value(submatches, "BIG_TREE").unwrap().parse()?,
+                relative_path: value(submatches, "RELATIVE_PATH").unwrap().parse()?,
             }
         } else if let Some(submatches) = matches.subcommand_matches("add-to-index") {
             ensure_git_dir()?;
             Command::AddToIndex {
-                mode: submatches.value_of("MODE").unwrap().parse()?,
-                tree: submatches.value_of("TREE").unwrap().parse()?,
-                relative_path: submatches.value_of("RELATIVE_PATH").unwrap().parse()?,
+                mode: value(submatches, "MODE").unwrap().parse()?,
+                tree: value(submatches, "TREE").unwrap().parse()?,
+                relative_path: value(submatches, "RELATIVE_PATH").unwrap().parse()?,
             }
         } else {
             panic!()
@@ -357,6 +358,10 @@ impl Args {
             command,
         })
     }
+}
+
+fn value<'a>(matches: &'a ArgMatches, id: &str) -> Option<&'a str> {
+    matches.get_one::<String>(id).map(String::as_str)
 }
 
 fn path_from_env(var: &str) -> Option<PathBuf> {
