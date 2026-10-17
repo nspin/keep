@@ -98,7 +98,7 @@ impl Args {
                 let tree_b = db.resolve_treeish(&tree_b)?;
                 let mut stdout = StandardStream::stdout(ColorChoice::Always);
                 db.shallow_diff(tree_a, tree_b, |difference| {
-                    let color = match difference.side {
+                    let color = match difference.side() {
                         ShallowDifferenceSide::A => Color::Red,
                         ShallowDifferenceSide::B => Color::Green,
                     };

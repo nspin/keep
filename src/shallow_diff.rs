@@ -3,15 +3,13 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::str::{self, Utf8Error};
 
-use git2::{Error, FileMode, Oid, Repository, TreeEntry, TreeIter};
+use git2::{Error, ObjectType, Oid, Repository, TreeEntry, TreeIter};
 use itertools::Itertools;
 
 pub struct ShallowDifference<'a> {
-    pub parent: &'a [Vec<u8>],
-    pub side: &'a ShallowDifferenceSide,
-    pub mode: i32,
-    pub oid: Oid,
-    pub name: &'a [u8],
+    parent: &'a [Vec<u8>],
+    side: &'a ShallowDifferenceSide,
+    entry: &'a TreeEntry<'a>,
 }
 
 impl<'a> ShallowDifference<'a> {
@@ -23,19 +21,21 @@ impl<'a> ShallowDifference<'a> {
         Self {
             parent,
             side,
-            mode: entry.filemode(),
-            oid: entry.id(),
-            name: entry.name_bytes(),
+            entry,
         }
     }
 
-    pub fn render_path(&self) -> Result<String, Utf8Error> {
+    fn render_path(&self) -> Result<String, Utf8Error> {
         self.parent
             .iter()
             .map(AsRef::as_ref)
-            .chain([self.name])
+            .chain([self.entry.name_bytes()])
             .map(str::from_utf8)
             .process_results(|mut components| components.join("/"))
+    }
+
+    pub fn side(&self) -> &ShallowDifferenceSide {
+        self.side
     }
 }
 
@@ -56,7 +56,7 @@ impl fmt::Display for ShallowDifferenceSide {
 impl<'a> fmt::Display for ShallowDifference<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let path = self.render_path().map_err(|_| fmt::Error)?;
-        write!(fmt, "{} {:06o} {} {}", self.side, self.mode, self.oid, path)
+        write!(fmt, "{} {:06o} {} {}", self.side, self.entry.filemode(), self.entry.id(), path)
     }
 }
 
@@ -111,7 +111,7 @@ where
                     opt_entry_b = None;
                 }
                 (Some(entry_a), Some(entry_b)) => {
-                    match entry_a.name_bytes().cmp(&entry_b.name_bytes()) {
+                    match entry_a.cmp(&entry_b) {
                         Ordering::Less => {
                             opt_entry_a = self.report_until(
                                 &entry_b,
@@ -129,23 +129,15 @@ where
                             )?;
                         }
                         Ordering::Equal => {
-                            let news = if entry_a.filemode() != entry_b.filemode() {
-                                true
-                            } else if entry_a.id() != entry_b.id() {
-                                if entry_a.filemode() == i32::from(FileMode::Tree) {
+                            if !tree_entries_actually_eq(&entry_a, &entry_b) {
+                                if let Some(ObjectType::Tree) = entry_a.kind() {
                                     self.path.push(entry_a.name_bytes().to_vec());
                                     self.diff_inner(entry_a.id(), entry_b.id())?;
                                     self.path.pop();
-                                    false
                                 } else {
-                                    true
+                                    self.report(&ShallowDifferenceSide::A, &entry_a)?;
+                                    self.report(&ShallowDifferenceSide::B, &entry_b)?;
                                 }
-                            } else {
-                                false
-                            };
-                            if news {
-                                self.report(&ShallowDifferenceSide::A, &entry_a)?;
-                                self.report(&ShallowDifferenceSide::B, &entry_b)?;
                             }
                             opt_entry_a = it_a.next();
                             opt_entry_b = it_b.next();
@@ -186,10 +178,10 @@ where
         self.report(side, current)?;
         for entry in it {
             if &entry < target_entry {
-                self.report(side, &entry)?;
+                self.report(side, &entry)?
             } else {
-                return Ok(Some(entry.to_owned()));
-            }
+                return Ok(Some(entry.to_owned()))
+            };
         }
         Ok(None)
     }
@@ -200,4 +192,11 @@ where
     {
         (self.callback)(&ShallowDifference::new(&self.path, side, entry))
     }
+}
+
+// TreeEntry::cmp only compares name and whether tree
+fn tree_entries_actually_eq(a: &TreeEntry, b: &TreeEntry) -> bool {
+    a.name_bytes() == b.name_bytes()
+        && a.filemode() == b.filemode()
+        && a.id() == b.id()
 }
