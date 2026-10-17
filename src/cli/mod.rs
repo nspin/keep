@@ -28,7 +28,7 @@ impl Args {
     }
 
     fn apply_verbosity(&self) {
-        const HACK_VERBOSITY: u64 = 2;
+        const HACK_VERBOSITY: u8 = 2;
         let level_filter = match HACK_VERBOSITY + self.verbosity {
             0 => log::LevelFilter::Error,
             1 => log::LevelFilter::Warn,
@@ -87,6 +87,12 @@ impl Args {
                 db.mount(tree, &mountpoint, substance, *uid, *gid)?;
             }
             Command::Diff { tree_a, tree_b } => {
+                let (tree_a, tree_b) = match (tree_a.as_deref(), tree_b.as_deref()) {
+                    (None, None) => ("HEAD^", "HEAD"),
+                    (Some(tree_a), None) => ("HEAD", tree_a),
+                    (Some(tree_a), Some(tree_b)) => (tree_a, tree_b),
+                    _ => panic!(),
+                };
                 let db = self.database()?;
                 let tree_a = db.resolve_treeish(&tree_a)?;
                 let tree_b = db.resolve_treeish(&tree_b)?;
