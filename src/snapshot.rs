@@ -73,6 +73,9 @@ struct PreShadow {
     mtime: i64,
     mtime_ns: i64,
     inode: u64,
+    uid: u32,
+    gid: u32,
+    dev: u64,
 }
 
 impl RawFindLine {
@@ -92,6 +95,9 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
             \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
             \ (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0    # %T@
             \ (?P<inode>[0-9]+)                             # %i
+            \ (?P<uid>[0-9]+)                               # %U
+            \ (?P<gid>[0-9]+)                               # %G
+            \ (?P<dev>[0-9]+)                               # %D
             \ (?P<path>[^\x00]*)\x00                        # %P\0
             \ (?P<target>[^\x00]*)\x00                      # %l\0
             \n
@@ -103,7 +109,7 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
     let output = Command::new("find")
         .arg(&subject)
         .arg("-printf")
-        .arg(r#"%y %#m %s %C@ %T@ %i %P\0 %l\0\n"#)
+        .arg(r#"%y %#m %s %C@ %T@ %i %U %G %D %P\0 %l\0\n"#)
         .stderr(Stdio::inherit())
         .output()
         .context("failed to run find")?;
@@ -132,6 +138,9 @@ fn match_line(caps: &Captures) -> RawFindLine {
             mtime: caps["mtime"].parse().unwrap(),
             mtime_ns: caps["mtime_ns"].parse().unwrap(),
             inode: caps["inode"].parse().unwrap(),
+            uid: caps["uid"].parse().unwrap(),
+            gid: caps["gid"].parse().unwrap(),
+            dev: caps["dev"].parse().unwrap(),
         },
         path: caps["path"].to_string(),
         target: caps["target"].to_string(),
@@ -216,5 +225,8 @@ fn stat_pre_shadow(path: &Path) -> Result<PreShadow> {
         mtime: metadata.mtime(),
         mtime_ns: metadata.mtime_nsec(),
         inode: metadata.ino(),
+        uid: metadata.uid(),
+        gid: metadata.gid(),
+        dev: metadata.dev(),
     })
 }
