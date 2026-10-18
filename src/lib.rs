@@ -34,12 +34,3 @@ pub use crate::{
         cli_main,
     },
 };
-
-pub(crate) fn exit_ok(status: std::process::ExitStatus) -> anyhow::Result<()> {
-    anyhow::ensure!(
-        status.success(),
-        "process exited unsuccessfully: {}",
-        status
-    );
-    Ok(())
-}

@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 
 use crate::ShadowPathComponent;
-use crate::{exit_ok, sha256sum, Shadow, ShadowPath};
+use crate::{sha256sum, Shadow, ShadowPath};
 
 #[derive(Clone, Debug)]
 pub enum Snapshot<T = Shadow> {
@@ -197,7 +197,7 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
         .stderr(Stdio::inherit())
         .output()
         .context("failed to run find")?;
-    exit_ok(output.status)?;
+    ensure!(output.status.success());
     Ok(RawFindLine::parse(str::from_utf8(&output.stdout).unwrap()))
 }
 

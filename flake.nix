@@ -55,7 +55,6 @@
             wrapProgram $out/bin/keep \
               --prefix PATH : ${pkgs.lib.makeBinPath (with pkgs; [
                 findutils
-                coreutils
               ])}
           '';
 
@@ -67,7 +66,6 @@
         default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             findutils
-            coreutils
             rustup
             pkg-config
             openssl

@@ -2,15 +2,12 @@ use std::fs::{self, OpenOptions, Permissions};
 use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use digest_io::IoWrapper;
-use lazy_static::lazy_static;
-use regex::bytes::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::{exit_ok, ContentSha256};
+use crate::ContentSha256;
 
 pub trait Substance {
     fn blob_path(&self, blob: &ContentSha256) -> PathBuf;
@@ -123,36 +120,11 @@ fn ensure_dir_exists(path: &Path) -> Result<()> {
 }
 
 pub fn sha256sum(path: &Path) -> Result<ContentSha256> {
-    sha256sum_rust(path)
-    // sha256sum_coreutils(path)
-}
-
-#[allow(dead_code)]
-fn sha256sum_rust(path: &Path) -> Result<ContentSha256> {
     let mut file = OpenOptions::new().read(true).open(path)?;
     let mut hasher = IoWrapper(Sha256::new());
     io::copy(&mut file, &mut hasher)?;
     let hash = hasher.0.finalize();
     Ok(ContentSha256::from_slice(&hash))
-}
-
-#[allow(dead_code)]
-fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
-    lazy_static! {
-        static ref RE: Regex =
-            Regex::new(r"(?-u)(?P<digest>[a-z0-9]{64}|[?]{64}) \*(?P<path>.*)\x00").unwrap();
-    }
-    let output = Command::new("sha256sum")
-        .arg("-bz")
-        .arg(path)
-        .stderr(Stdio::inherit())
-        .output()
-        .unwrap();
-    exit_ok(output.status)?;
-    let caps = RE
-        .captures(&output.stdout)
-        .ok_or(anyhow!("regex does not match"))?;
-    Ok(std::str::from_utf8(&caps["digest"])?.parse()?)
 }
 
 fn check_sha256sum(expected: &ContentSha256, path: &Path) -> Result<()> {
