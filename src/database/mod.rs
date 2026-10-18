@@ -1,7 +1,7 @@
 use anyhow::{Error, Result};
 use git2::{Commit, Oid, Repository, Signature, Tree};
 
-use crate::{shallow_diff, ShallowDifference};
+use crate::{ShallowDifference, shallow_diff};
 
 mod append;
 mod remove;

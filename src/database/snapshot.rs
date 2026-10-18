@@ -3,10 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use git2::{FileMode, Oid};
 
-use crate::{
-    Database, ShadowTreeEntryName, Snapshot,
-    Substance,
-};
+use crate::{Database, ShadowTreeEntryName, Snapshot, Substance};
 
 impl Database {
     pub fn plant_snapshot(&self, value: &Snapshot) -> Result<(FileMode, Oid)> {
@@ -42,7 +39,8 @@ impl Database {
                     FileMode::Blob.into(),
                 )?;
                 for (name, value) in entries.iter() {
-                    let (child_mode, child_oid) = self.plant_snapshot_inner(value, empty_blob_oid)?;
+                    let (child_mode, child_oid) =
+                        self.plant_snapshot_inner(value, empty_blob_oid)?;
                     builder.insert(name.encode(), child_oid, child_mode.into())?;
                 }
                 let oid = builder.write()?;

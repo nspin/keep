@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::str;
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use git2::{FileMode, ObjectType, Oid, Repository};
 
 use crate::{Database, Shadow, ShadowPath, ShadowTreeEntryName};

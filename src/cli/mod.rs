@@ -4,7 +4,7 @@ use anyhow::Result;
 use git2::{FileMode, Repository};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use crate::{sha256sum, Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, Substance};
+use crate::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, Substance, sha256sum};
 
 mod args;
 
@@ -48,10 +48,7 @@ impl Args {
             } => {
                 let db = self.database()?;
                 let substance = self.substance()?;
-                log::info!(
-                    "taking snapshot of {}",
-                    subject.display()
-                );
+                log::info!("taking snapshot of {}", subject.display());
                 let snapshot = Snapshot::take(&subject)?;
                 log::info!("planting snapshot");
                 let (mode, tree) = db.plant_snapshot(&snapshot)?;

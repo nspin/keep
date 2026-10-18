@@ -7,18 +7,25 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 
 use crate::ShadowPathComponent;
-use crate::{sha256sum, Shadow, ShadowPath};
+use crate::{Shadow, ShadowPath, sha256sum};
 
 #[derive(Clone, Debug)]
 pub enum Snapshot<T = Shadow> {
-    File { shadow: T, executable: bool },
-    Link { target: String },
-    Tree { entries: BTreeMap<ShadowPathComponent, Snapshot<T>> },
+    File {
+        shadow: T,
+        executable: bool,
+    },
+    Link {
+        target: String,
+    },
+    Tree {
+        entries: BTreeMap<ShadowPathComponent, Snapshot<T>>,
+    },
 }
 
 impl<T> Snapshot<T> {
@@ -29,7 +36,11 @@ impl<T> Snapshot<T> {
         self.traverse_with_path_inner(&mut ShadowPath::new(), f)
     }
 
-    fn traverse_with_path_inner<U, E, F>(self, path: &mut ShadowPath, f: &mut F) -> Result<Snapshot<U>, E>
+    fn traverse_with_path_inner<U, E, F>(
+        self,
+        path: &mut ShadowPath,
+        f: &mut F,
+    ) -> Result<Snapshot<U>, E>
     where
         F: FnMut(&ShadowPath, T) -> Result<U, E>,
     {
@@ -127,7 +138,6 @@ impl Meta {
     }
 }
 
-
 #[derive(Debug)]
 struct RawFindLine {
     meta: Meta,
@@ -205,7 +215,7 @@ fn parse_find_output(lines: Vec<RawFindLine>) -> Result<Snapshot<Meta>> {
     let mut lines = lines
         .into_iter()
         .filter(|line| {
-            let keep = matches!(line.meta.ty, 'f'|'l'|'d');
+            let keep = matches!(line.meta.ty, 'f' | 'l' | 'd');
             if !keep {
                 log::warn!("skipping {:?}", line);
             }
@@ -233,12 +243,17 @@ fn parse_find_output_inner(
                 executable,
             }
         }
-        'l' => Snapshot::Link { target: line.target },
+        'l' => Snapshot::Link {
+            target: line.target,
+        },
         'd' => {
             let mut entries = BTreeMap::new();
             while let Some(next_line) = lines.peek() {
                 let next_line_path = next_line.path.parse::<ShadowPath>()?;
-                if let Some([name]) = next_line_path.components().strip_prefix(line_path.components()) {
+                if let Some([name]) = next_line_path
+                    .components()
+                    .strip_prefix(line_path.components())
+                {
                     let next_line = lines.next().unwrap();
                     let value = parse_find_output_inner(lines, next_line, &next_line_path)?;
                     assert!(entries.insert(name.clone(), value).is_none());
