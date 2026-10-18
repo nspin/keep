@@ -1,10 +1,10 @@
+mod cli;
+mod database;
 mod paths;
 mod shadow;
-mod substance;
-mod snapshot;
 mod shallow_diff;
-mod database;
-mod cli;
+mod snapshot;
+mod substance;
 
 #[rustfmt::skip]
 pub use crate::{

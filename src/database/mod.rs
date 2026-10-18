@@ -4,10 +4,10 @@ use git2::{Commit, Oid, Repository, Signature, Tree};
 use crate::{ShallowDifference, shallow_diff};
 
 mod append;
-mod remove;
-mod traverse;
-mod snapshot;
 mod fs;
+mod remove;
+mod snapshot;
+mod traverse;
 
 pub use traverse::{
     TraversalCallbacks, Traverser, Visit, VisitLink, VisitShadow, VisitTree, VisitTreeDecision,
