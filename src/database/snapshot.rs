@@ -50,17 +50,15 @@ impl Database {
                     FileMode::Blob.into(),
                 )?;
                 while let Some(child_candidate) = entries.peek()? {
-                    if &child_candidate.path.components()
-                        [..child_candidate.path.components().len() - 1]
-                        != entry.path.components()
-                    {
+                    if let Some((_, parent)) = child_candidate.path.components().split_last() && parent == entry.path.components(){
+                        let child = entries.next()?.unwrap();
+                        let child_name = child.path.components().last().unwrap();
+                        let (child_mode, child_oid) =
+                            self.plant_snapshot_inner(entries, &child, empty_blob_oid)?;
+                        builder.insert(child_name.encode(), child_oid, child_mode.into())?;
+                    } else {
                         break;
                     }
-                    let child = entries.next()?.unwrap();
-                    let child_name = child.path.components().last().unwrap();
-                    let (child_mode, child_oid) =
-                        self.plant_snapshot_inner(entries, &child, empty_blob_oid)?;
-                    builder.insert(child_name.encode(), child_oid, child_mode.into())?;
                 }
                 let oid = builder.write()?;
                 (mode, oid)
