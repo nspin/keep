@@ -113,7 +113,9 @@ impl SharedFile {
 impl<T> DatabaseFilesystem<T> {
     pub fn new(repository: Repository, tree: Oid, substance: T, uid: u32, gid: u32) -> Self {
         Self {
-            state: Mutex::new(DatabaseFilesystemState::new(repository, tree, substance, uid, gid)),
+            state: Mutex::new(DatabaseFilesystemState::new(
+                repository, tree, substance, uid, gid,
+            )),
         }
     }
 }
@@ -350,7 +352,13 @@ impl<T: Substance> DatabaseFilesystemState<T> {
             Ok(Some((ino, FileType::Directory, ".".into()))),
             Ok(Some((parent, FileType::Directory, "..".into()))),
         ];
-        let tree_entries = self.repository.find_tree(oid).unwrap().iter().map(|entry| entry.to_owned()).collect_vec();
+        let tree_entries = self
+            .repository
+            .find_tree(oid)
+            .unwrap()
+            .iter()
+            .map(|entry| entry.to_owned())
+            .collect_vec();
         let entries = always
             .into_iter()
             .chain(tree_entries.into_iter().enumerate().map(|(i, entry)| {

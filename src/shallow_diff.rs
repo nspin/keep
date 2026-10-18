@@ -56,7 +56,14 @@ impl fmt::Display for ShallowDifferenceSide {
 impl<'a> fmt::Display for ShallowDifference<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let path = self.render_path().map_err(|_| fmt::Error)?;
-        write!(fmt, "{} {:06o} {} {}", self.side, self.entry.filemode(), self.entry.id(), path)
+        write!(
+            fmt,
+            "{} {:06o} {} {}",
+            self.side,
+            self.entry.filemode(),
+            self.entry.id(),
+            path
+        )
     }
 }
 
@@ -110,40 +117,38 @@ where
                     self.exhaust(&ShallowDifferenceSide::B, &entry_b, &mut it_b)?;
                     opt_entry_b = None;
                 }
-                (Some(entry_a), Some(entry_b)) => {
-                    match entry_a.cmp(&entry_b) {
-                        Ordering::Less => {
-                            opt_entry_a = self.report_until(
-                                &entry_b,
-                                &ShallowDifferenceSide::A,
-                                &entry_a,
-                                &mut it_a,
-                            )?;
-                        }
-                        Ordering::Greater => {
-                            opt_entry_b = self.report_until(
-                                &entry_a,
-                                &ShallowDifferenceSide::B,
-                                &entry_b,
-                                &mut it_b,
-                            )?;
-                        }
-                        Ordering::Equal => {
-                            if !tree_entries_actually_eq(&entry_a, &entry_b) {
-                                if let Some(ObjectType::Tree) = entry_a.kind() {
-                                    self.path.push(entry_a.name_bytes().to_vec());
-                                    self.diff_inner(entry_a.id(), entry_b.id())?;
-                                    self.path.pop();
-                                } else {
-                                    self.report(&ShallowDifferenceSide::A, &entry_a)?;
-                                    self.report(&ShallowDifferenceSide::B, &entry_b)?;
-                                }
-                            }
-                            opt_entry_a = it_a.next();
-                            opt_entry_b = it_b.next();
-                        }
+                (Some(entry_a), Some(entry_b)) => match entry_a.cmp(&entry_b) {
+                    Ordering::Less => {
+                        opt_entry_a = self.report_until(
+                            &entry_b,
+                            &ShallowDifferenceSide::A,
+                            &entry_a,
+                            &mut it_a,
+                        )?;
                     }
-                }
+                    Ordering::Greater => {
+                        opt_entry_b = self.report_until(
+                            &entry_a,
+                            &ShallowDifferenceSide::B,
+                            &entry_b,
+                            &mut it_b,
+                        )?;
+                    }
+                    Ordering::Equal => {
+                        if !tree_entries_actually_eq(&entry_a, &entry_b) {
+                            if let Some(ObjectType::Tree) = entry_a.kind() {
+                                self.path.push(entry_a.name_bytes().to_vec());
+                                self.diff_inner(entry_a.id(), entry_b.id())?;
+                                self.path.pop();
+                            } else {
+                                self.report(&ShallowDifferenceSide::A, &entry_a)?;
+                                self.report(&ShallowDifferenceSide::B, &entry_b)?;
+                            }
+                        }
+                        opt_entry_a = it_a.next();
+                        opt_entry_b = it_b.next();
+                    }
+                },
             }
         }
         Ok(())
@@ -180,7 +185,7 @@ where
             if &entry < target_entry {
                 self.report(side, &entry)?
             } else {
-                return Ok(Some(entry.to_owned()))
+                return Ok(Some(entry.to_owned()));
             };
         }
         Ok(None)
@@ -196,7 +201,5 @@ where
 
 // TreeEntry::cmp only compares name and whether tree
 fn tree_entries_actually_eq(a: &TreeEntry, b: &TreeEntry) -> bool {
-    a.name_bytes() == b.name_bytes()
-        && a.filemode() == b.filemode()
-        && a.id() == b.id()
+    a.name_bytes() == b.name_bytes() && a.filemode() == b.filemode() && a.id() == b.id()
 }
