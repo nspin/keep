@@ -34,7 +34,6 @@
               ./Cargo.toml
               ./Cargo.lock
               ./src
-              ./scripts/take-snapshot.bash
             ];
           };
 
@@ -54,7 +53,11 @@
 
           postInstall = ''
             wrapProgram $out/bin/keep \
-              --prefix PATH : ${pkgs.lib.makeBinPath (with pkgs; [ git bash coreutils findutils ])}
+              --prefix PATH : ${pkgs.lib.makeBinPath (with pkgs; [
+                git
+                findutils
+                coreutils
+              ])}
           '';
 
           meta.mainProgram = "keep";
@@ -64,6 +67,9 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
+            git
+            findutils
+            coreutils
             rustup
             pkg-config
             openssl

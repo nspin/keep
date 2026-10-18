@@ -32,10 +32,6 @@ pub enum Command {
         relative_path: ShadowPath,
         #[arg(long, short = 'f', help = "Replace RELATIVE_PATH if it exists.")]
         force: bool,
-        #[arg(long = "rm", help = "Remove snapshot afterwards if success.")]
-        remove_after: bool,
-        #[arg(long, short = 'd', default_value = "tmp.snapshot")]
-        snapshot_dir: PathBuf,
     },
     Mount {
         mountpoint: PathBuf,
@@ -69,12 +65,8 @@ pub enum Command {
     Sha256Sum {
         path: PathBuf,
     },
-    TakeSnapshot {
-        subject: PathBuf,
-        out: PathBuf,
-    },
     PlantSnapshot {
-        snapshot: PathBuf,
+        subject: PathBuf,
     },
     StoreSnapshot {
         tree: String,
@@ -128,7 +120,7 @@ impl Args {
             | Command::Append { .. }
             | Command::Remove { .. }
             | Command::AddToIndex { .. } => (true, false),
-            Command::Sha256Sum { .. } | Command::TakeSnapshot { .. } => (false, false),
+            Command::Sha256Sum { .. } => (false, false),
         };
         if needs_git_dir && self.git_dir.is_none() {
             return Err(anyhow!("missing '--git-dir'"));

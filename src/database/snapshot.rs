@@ -1,33 +1,25 @@
-use std::{collections::BTreeSet, io};
 use std::path::Path;
 
 use anyhow::Result;
-use fallible_iterator::{FallibleIterator, Peekable};
 use git2::{FileMode, Oid};
 
 use crate::{
-    Database, ShadowTreeEntryName, Snapshot, SnapshotEntries, SnapshotEntry, SnapshotEntryValue,
+    Database, ShadowTreeEntryName, Snapshot,
     Substance,
 };
 
 impl Database {
-    pub fn plant_snapshot(&self, snapshot: &Snapshot) -> Result<(FileMode, Oid)> {
-        let mut entries = snapshot.entries()?.peekable();
-        let entry = entries.next()?.unwrap();
-        assert!(entry.path.components().is_empty());
-        let ret = self.plant_snapshot_inner(&mut entries, &entry, self.empty_blob_oid()?)?;
-        assert!(entries.peek()?.is_none());
-        Ok(ret)
+    pub fn plant_snapshot(&self, value: &Snapshot) -> Result<(FileMode, Oid)> {
+        self.plant_snapshot_inner(&value, self.empty_blob_oid()?)
     }
 
-    fn plant_snapshot_inner(
+    fn plant_snapshot_inner<'a>(
         &self,
-        entries: &mut Peekable<SnapshotEntries<impl io::BufRead>>,
-        entry: &SnapshotEntry,
+        value: &Snapshot,
         empty_blob_oid: Oid,
     ) -> Result<(FileMode, Oid)> {
-        Ok(match &entry.value {
-            SnapshotEntryValue::File { shadow, executable } => {
+        Ok(match value {
+            Snapshot::File { shadow, executable } => {
                 let mode = if *executable {
                     FileMode::BlobExecutable
                 } else {
@@ -36,12 +28,12 @@ impl Database {
                 let oid = self.repository().blob(&shadow.to_bytes())?;
                 (mode, oid)
             }
-            SnapshotEntryValue::Link { target } => {
+            Snapshot::Link { target } => {
                 let mode = FileMode::Link;
                 let oid = self.repository().blob(target.as_bytes())?;
                 (mode, oid)
             }
-            SnapshotEntryValue::Tree => {
+            Snapshot::Tree { entries } => {
                 let mode = FileMode::Tree;
                 let mut builder = self.repository().treebuilder(None)?;
                 builder.insert(
@@ -49,18 +41,9 @@ impl Database {
                     empty_blob_oid,
                     FileMode::Blob.into(),
                 )?;
-                let mut inserted = BTreeSet::new();
-                while let Some(child_candidate) = entries.peek()? {
-                    if let Some((_, parent)) = child_candidate.path.components().split_last() && parent == entry.path.components(){
-                        let child = entries.next()?.unwrap();
-                        let child_name = child.path.components().last().unwrap();
-                        assert!(inserted.insert(child_name.clone()));
-                        let (child_mode, child_oid) =
-                            self.plant_snapshot_inner(entries, &child, empty_blob_oid)?;
-                        builder.insert(child_name.encode(), child_oid, child_mode.into())?;
-                    } else {
-                        break;
-                    }
+                for (name, value) in entries.iter() {
+                    let (child_mode, child_oid) = self.plant_snapshot_inner(value, empty_blob_oid)?;
+                    builder.insert(name.encode(), child_oid, child_mode.into())?;
                 }
                 let oid = builder.write()?;
                 (mode, oid)

@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
 
 use itertools::Itertools;
@@ -73,6 +74,14 @@ impl ShadowPath {
             .map(ShadowTreeEntryName::encode_child)
             .chain([ShadowTreeEntryName::encode_marker()])
             .join("/")
+    }
+
+    pub fn append_to(&self, path: impl AsRef<Path>) -> PathBuf {
+        let mut path = path.as_ref().to_owned();
+        for c in self.components() {
+            path.push(&c.0);
+        }
+        path
     }
 }
 

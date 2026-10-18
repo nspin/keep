@@ -45,18 +45,14 @@ impl Args {
                 subject,
                 relative_path,
                 force,
-                remove_after,
-                snapshot_dir,
             } => {
                 let db = self.database()?;
                 let substance = self.substance()?;
-                let snapshot = Snapshot::new(&snapshot_dir);
                 log::info!(
-                    "taking snapshot of {} to {}",
-                    subject.display(),
-                    snapshot.path().display()
+                    "taking snapshot of {}",
+                    subject.display()
                 );
-                snapshot.take(&subject)?;
+                let snapshot = Snapshot::take(&subject)?;
                 log::info!("planting snapshot");
                 let (mode, tree) = db.plant_snapshot(&snapshot)?;
                 log::info!("planted: {:06o},{}", u32::from(mode), tree);
@@ -76,9 +72,6 @@ impl Args {
                     db.commit_simple("x", &db.repository().find_tree(new_big_tree)?, &parent)?;
                 log::info!("new commit is {}. merging --ff-only into HEAD", commit);
                 db.safe_merge(commit)?;
-                if *remove_after {
-                    snapshot.remove()?;
-                }
             }
             Command::Mount {
                 mountpoint,
@@ -147,13 +140,9 @@ impl Args {
                 let blob = sha256sum(path)?;
                 println!("{} *{}", blob, path.display());
             }
-            Command::TakeSnapshot { subject, out } => {
-                let snapshot = Snapshot::new(out);
-                snapshot.take(&subject)?;
-            }
-            Command::PlantSnapshot { snapshot } => {
+            Command::PlantSnapshot { subject } => {
                 let db = self.database()?;
-                let snapshot = Snapshot::new(snapshot);
+                let snapshot = Snapshot::take(subject)?;
                 let (mode, tree) = db.plant_snapshot(&snapshot)?;
                 println!("{:06o},{}", u32::from(mode), tree)
             }

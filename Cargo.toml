@@ -5,12 +5,10 @@ edition = "2024"
 
 [dependencies]
 libc = "0.2"
-rand = "0.10"
 log = "0.4"
 hex = "0.4"
 regex = "1"
 lazy_static = "1"
-fallible-iterator = "0.3"
 itertools = "0.15"
 sha2 = "0.11"
 digest-io = "0.1"

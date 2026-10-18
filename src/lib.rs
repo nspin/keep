@@ -19,7 +19,7 @@ pub use crate::{
         sha256sum,
     },
     snapshot::{
-        Snapshot, SnapshotEntries, SnapshotEntry, SnapshotEntryValue,
+        Snapshot,
     },
     shallow_diff::{
         ShallowDifference, ShallowDifferenceSide,
