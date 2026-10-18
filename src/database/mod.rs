@@ -45,8 +45,7 @@ impl Database {
         tree_b: Oid,
         callback: impl for<'b> FnMut(&ShallowDifference<'b>) -> Result<(), Error>,
     ) -> Result<()> {
-        shallow_diff(&self.repository, tree_a, tree_b, callback).map_err(Error::from)
-    }
+        shallow_diff(&self.repository, tree_a, tree_b, callback)}
 
     pub fn commit_simple(
         &self,

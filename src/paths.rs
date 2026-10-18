@@ -85,6 +85,12 @@ impl ShadowPath {
     }
 }
 
+impl Default for ShadowPath {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl fmt::Display for ShadowPath {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}", self.components().iter().format("/"))
@@ -116,10 +122,7 @@ impl ShadowTreeEntryName {
     const CHILD_PREFIX: &'static str = "0_";
 
     pub fn is_marker(&self) -> bool {
-        match self {
-            Self::Marker => true,
-            _ => false,
-        }
+        matches!(self, Self::Marker)
     }
 
     pub fn child(&self) -> Option<&ShadowPathComponent> {
@@ -134,7 +137,7 @@ impl ShadowTreeEntryName {
     }
 
     pub fn encode_marker() -> String {
-        format!("{}", Self::MARKER)
+        Self::MARKER.to_string()
     }
 
     pub fn encode_child(child: &ShadowPathComponent) -> String {

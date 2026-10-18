@@ -179,7 +179,7 @@ impl<T: Substance> DatabaseFilesystemState<T> {
             InodeEntry::File { oid, executable } => {
                 let kind = FileType::RegularFile;
                 let perm = 0o444 | (if *executable { 0o000 } else { 0o111 });
-                let blob = self.repository.find_blob(oid.clone())?;
+                let blob = self.repository.find_blob(*oid)?;
                 let shadow = Shadow::from_bytes(blob.content())?;
                 let size = shadow.size().unwrap_or(0);
                 (kind, perm, size)
@@ -187,7 +187,7 @@ impl<T: Substance> DatabaseFilesystemState<T> {
             InodeEntry::Link { oid } => {
                 let kind = FileType::Symlink;
                 let perm = 0o555;
-                let blob = self.repository.find_blob(oid.clone())?;
+                let blob = self.repository.find_blob(*oid)?;
                 let size = blob.size().try_into().unwrap();
                 (kind, perm, size)
             }
@@ -226,9 +226,9 @@ impl<T: Substance> DatabaseFilesystemState<T> {
             InodeEntry::File { oid, .. } => oid,
             _ => bail!("not a file"),
         };
-        let blob = self.repository.find_blob(oid.clone())?;
+        let blob = self.repository.find_blob(*oid)?;
         let shadow = Shadow::from_bytes(blob.content())?;
-        let blob_path = self.substance.blob_path(&shadow.content_hash());
+        let blob_path = self.substance.blob_path(shadow.content_hash());
         let file = OpenOptions::new().read(true).open(blob_path)?;
         self.file_handles.insert(ino, SharedFile::new(file));
         Ok(())
@@ -310,7 +310,7 @@ impl<T: Substance> DatabaseFilesystemState<T> {
                 ))),
             }
         );
-        let tree = self.repository.find_tree(oid.clone()).unwrap();
+        let tree = self.repository.find_tree(*oid).unwrap();
         let entry_name = name
             .to_str()
             .unwrap()
@@ -409,7 +409,7 @@ impl<T: Substance> DatabaseFilesystemState<T> {
                 ))),
             }
         );
-        let blob = self.repository.find_blob(oid.clone()).unwrap();
+        let blob = self.repository.find_blob(*oid).unwrap();
         let target = blob.content();
         reply.data(target);
     }

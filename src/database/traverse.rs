@@ -12,7 +12,7 @@ impl Database {
         callbacks: &'a mut T,
     ) -> Traverser<'a, T> {
         Traverser {
-            repository: &self.repository(),
+            repository: self.repository(),
             callbacks,
             empty_blob_oid: None,
         }
@@ -182,7 +182,7 @@ impl<'a, T: TraversalCallbacks> Traverser<'a, T> {
     pub fn traverse_from(&mut self, path: &mut ShadowPath, tree: Oid) -> Result<()> {
         if let VisitTreeDecision::Skip = self.callbacks.on_tree(&Visit {
             repository: self.repository,
-            path: &path,
+            path,
             oid: tree,
             extra: VisitTree,
         })? {
@@ -214,7 +214,7 @@ impl<'a, T: TraversalCallbacks> Traverser<'a, T> {
                     if mode == FileMode::Link.into() {
                         self.callbacks.on_link(&Visit {
                             repository: self.repository,
-                            path: &path,
+                            path,
                             oid,
                             extra: VisitLink,
                         })?;
@@ -228,7 +228,7 @@ impl<'a, T: TraversalCallbacks> Traverser<'a, T> {
                         };
                         self.callbacks.on_shadow(&Visit {
                             repository: self.repository,
-                            path: &path,
+                            path,
                             oid,
                             extra: VisitShadow { executable },
                         })?;

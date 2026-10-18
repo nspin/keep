@@ -49,12 +49,12 @@ impl Args {
                 let db = self.database()?;
                 let substance = self.substance()?;
                 log::info!("taking snapshot of {}", subject.display());
-                let snapshot = Snapshot::take(&subject)?;
+                let snapshot = Snapshot::take(subject)?;
                 log::info!("planting snapshot");
                 let (mode, tree) = db.plant_snapshot(&snapshot)?;
                 log::info!("planted: {:06o},{}", u32::from(mode), tree);
                 log::info!("storing snapshot");
-                db.store_snapshot(&substance, tree, &subject)?;
+                db.store_snapshot(&substance, tree, subject)?;
                 // log::info!("adding snapshot to index at {}", relative_path);
                 // db.add_to_index(mode, tree, relative_path)?;
                 let parent = db.repository().head()?.peel_to_commit()?;
@@ -64,7 +64,7 @@ impl Args {
                     big_tree,
                     relative_path
                 );
-                let new_big_tree = db.append(big_tree, &relative_path, mode, tree, *force)?;
+                let new_big_tree = db.append(big_tree, relative_path, mode, tree, *force)?;
                 let commit =
                     db.commit_simple("x", &db.repository().find_tree(new_big_tree)?, &parent)?;
                 log::info!("new commit is {}. merging --ff-only into HEAD", commit);
@@ -78,8 +78,8 @@ impl Args {
             } => {
                 let db = self.database()?;
                 let substance = self.substance()?;
-                let tree = db.resolve_treeish(&tree)?;
-                db.mount(tree, &mountpoint, substance, *uid, *gid)?;
+                let tree = db.resolve_treeish(tree)?;
+                db.mount(tree, mountpoint, substance, *uid, *gid)?;
             }
             Command::Diff { tree_a, tree_b } => {
                 let (tree_a, tree_b) = match (tree_a.as_deref(), tree_b.as_deref()) {
@@ -89,8 +89,8 @@ impl Args {
                     _ => panic!(),
                 };
                 let db = self.database()?;
-                let tree_a = db.resolve_treeish(&tree_a)?;
-                let tree_b = db.resolve_treeish(&tree_b)?;
+                let tree_a = db.resolve_treeish(tree_a)?;
+                let tree_b = db.resolve_treeish(tree_b)?;
                 let mut stdout = StandardStream::stdout(ColorChoice::Always);
                 db.shallow_diff(tree_a, tree_b, |difference| {
                     let color = match difference.side() {
@@ -105,12 +105,12 @@ impl Args {
             }
             Command::Check { tree } => {
                 let db = self.database()?;
-                let tree = db.resolve_treeish(&tree)?;
+                let tree = db.resolve_treeish(tree)?;
                 db.check(tree)?;
             }
             Command::UniqueBlobs { tree } => {
                 let db = self.database()?;
-                let tree = db.resolve_treeish(&tree)?;
+                let tree = db.resolve_treeish(tree)?;
                 db.unique_shadows(tree, |path, blob| {
                     println!("{} {}", blob.content_hash(), path);
                     Ok(())
@@ -119,17 +119,16 @@ impl Args {
             Command::CheckBlobs { tree, deep } => {
                 let db = self.database()?;
                 let substance = self.substance()?;
-                let tree = db.resolve_treeish(&tree)?;
+                let tree = db.resolve_treeish(tree)?;
                 db.unique_shadows(tree, |path, blob| {
                     // TODO check size
                     if !substance.have_blob(blob.content_hash()) {
                         println!("missing blob: {} {}", blob.content_hash(), path);
                     }
-                    if *deep {
-                        if !substance.check_blob(blob.content_hash()).is_ok() {
+                    if *deep
+                        && !substance.check_blob(blob.content_hash()).is_ok() {
                             println!("invalid blob: {} {}", blob.content_hash(), path);
                         }
-                    }
                     Ok(())
                 })?;
             }
@@ -146,8 +145,8 @@ impl Args {
             Command::StoreSnapshot { tree, subject } => {
                 let db = self.database()?;
                 let substance = self.substance()?;
-                let tree = db.resolve_treeish(&tree)?;
-                db.store_snapshot(&substance, tree, &subject)?;
+                let tree = db.resolve_treeish(tree)?;
+                db.store_snapshot(&substance, tree, subject)?;
             }
             Command::Append {
                 big_tree,
@@ -157,11 +156,11 @@ impl Args {
                 force,
             } => {
                 let db = self.database()?;
-                let big_tree = db.resolve_treeish(&big_tree)?;
+                let big_tree = db.resolve_treeish(big_tree)?;
                 assert_eq!(mode, &format!("{:06o}", u32::from(FileMode::Tree)));
                 let mode = FileMode::Tree;
-                let object = db.resolve_treeish(&object)?;
-                let new_tree = db.append(big_tree, &relative_path, mode, object, *force)?;
+                let object = db.resolve_treeish(object)?;
+                let new_tree = db.append(big_tree, relative_path, mode, object, *force)?;
                 println!("{}", new_tree)
             }
             Command::Remove {
@@ -169,8 +168,8 @@ impl Args {
                 relative_path,
             } => {
                 let db = self.database()?;
-                let big_tree = db.resolve_treeish(&big_tree)?;
-                let new_tree = db.remove(big_tree, &relative_path)?;
+                let big_tree = db.resolve_treeish(big_tree)?;
+                let new_tree = db.remove(big_tree, relative_path)?;
                 println!("{}", new_tree)
             }
         }

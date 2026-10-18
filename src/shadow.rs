@@ -37,9 +37,9 @@ impl Shadow {
 
 impl fmt::Display for Shadow {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "sha256 {}\n", self.content_hash)?;
+        writeln!(fmt, "sha256 {}", self.content_hash)?;
         if let Some(size) = self.size {
-            write!(fmt, "size {}\n", size)?;
+            writeln!(fmt, "size {}", size)?;
         }
         Ok(())
     }

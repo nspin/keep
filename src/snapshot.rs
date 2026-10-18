@@ -98,7 +98,7 @@ impl Meta {
     }
 
     fn stat(path: &Path) -> Result<Self> {
-        let metadata = fs::symlink_metadata(&path)?;
+        let metadata = fs::symlink_metadata(path)?;
         let ty = match metadata.mode() >> 12 {
             0o10 => 'f',
             0o04 => 'd',
@@ -126,7 +126,7 @@ impl Meta {
     }
 
     fn check(&self, path: &Path) -> Result<()> {
-        let actual = Self::stat(&path)?;
+        let actual = Self::stat(path)?;
         ensure!(
             self == &actual,
             "{} changed while taking snapshot: {:?} != {:?}",
@@ -201,7 +201,7 @@ impl RawFindLine {
 fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
     assert!(!subject.as_os_str().as_bytes().starts_with(b"-"));
     let output = Command::new("find")
-        .arg(&subject)
+        .arg(subject)
         .arg("-printf")
         .arg(r#"%y %#m %s %C@ %T@ %i %U %G %D %P\0 %l\0\n"#)
         .stderr(Stdio::inherit())

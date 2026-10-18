@@ -35,12 +35,12 @@ impl Database {
         let mut builder = self.repository().treebuilder(Some(&orig))?;
         let (head, tail) = path.split_first().unwrap();
         let (head_mode, head_oid) = if tail.is_empty() {
-            if !can_replace && builder.get(&head.encode())?.is_some() {
+            if !can_replace && builder.get(head.encode())?.is_some() {
                 bail!("would replace"); // TODO structured error
             }
             (mode, object)
         } else {
-            let head_oid = match builder.get(&head.encode())? {
+            let head_oid = match builder.get(head.encode())? {
                 None => self.append_inner_create(empty_blob_oid, tail, mode, object)?,
                 Some(entry) => {
                     assert_eq!(entry.filemode(), FileMode::Tree.into());
@@ -49,8 +49,8 @@ impl Database {
             };
             (FileMode::Tree, head_oid)
         };
-        if builder.get(&head.encode())?.is_some() {
-            builder.remove(&head.encode()).unwrap();
+        if builder.get(head.encode())?.is_some() {
+            builder.remove(head.encode()).unwrap();
         }
         builder.insert(head.encode(), head_oid, head_mode.into())?;
         Ok(builder.write()?)
@@ -66,7 +66,7 @@ impl Database {
         let mut builder = self.repository().treebuilder(None)?;
         builder.insert(
             ShadowTreeEntryName::Marker.encode(),
-            self.empty_blob_oid()?,
+            empty_blob_oid,
             FileMode::Blob.into(),
         )?;
         let (head, tail) = path.split_first().unwrap();

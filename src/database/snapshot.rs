@@ -7,10 +7,10 @@ use crate::{Database, ShadowTreeEntryName, Snapshot, Substance};
 
 impl Database {
     pub fn plant_snapshot(&self, value: &Snapshot) -> Result<(FileMode, Oid)> {
-        self.plant_snapshot_inner(&value, self.empty_blob_oid()?)
+        self.plant_snapshot_inner(value, self.empty_blob_oid()?)
     }
 
-    fn plant_snapshot_inner<'a>(
+    fn plant_snapshot_inner(
         &self,
         value: &Snapshot,
         empty_blob_oid: Oid,
