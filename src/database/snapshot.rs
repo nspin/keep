@@ -1,4 +1,4 @@
-use std::io;
+use std::{collections::BTreeSet, io};
 use std::path::Path;
 
 use anyhow::Result;
@@ -49,10 +49,12 @@ impl Database {
                     empty_blob_oid,
                     FileMode::Blob.into(),
                 )?;
+                let mut inserted = BTreeSet::new();
                 while let Some(child_candidate) = entries.peek()? {
                     if let Some((_, parent)) = child_candidate.path.components().split_last() && parent == entry.path.components(){
                         let child = entries.next()?.unwrap();
                         let child_name = child.path.components().last().unwrap();
+                        assert!(inserted.insert(child_name.clone()));
                         let (child_mode, child_oid) =
                             self.plant_snapshot_inner(entries, &child, empty_blob_oid)?;
                         builder.insert(child_name.encode(), child_oid, child_mode.into())?;
