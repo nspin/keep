@@ -9,7 +9,7 @@ use std::str;
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use lazy_static::lazy_static;
-use regex::Regex;
+use regex::{Captures, Regex};
 
 use crate::ShadowPathComponent;
 use crate::{exit_ok, sha256sum, Shadow, ShadowPath};
@@ -82,6 +82,23 @@ impl RawFindLine {
 }
 
 fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(
+            r"(?x)
+            \A
+            (?P<type>[dflcbsp])                             # %y
+            \ 0(?P<mode>[0-7]+)                             # %#m
+            \ (?P<size>[0-9]+|\?)                           # %s
+            \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
+            \ (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0    # %T@
+            \ (?P<inode>[0-9]+)                             # %i
+            \ (?P<path>[^\x00]*)\x00                        # %P\0
+            \ (?P<target>[^\x00]*)\x00                      # %l\0
+            \n
+            "
+        )
+        .unwrap();
+    }
     assert!(!subject.as_os_str().as_bytes().starts_with(b"-"));
     let output = Command::new("find")
         .arg(&subject)
@@ -91,39 +108,34 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
         .output()
         .context("failed to run find")?;
     exit_ok(output.status)?;
-    parse_raw_find_lines(str::from_utf8(&output.stdout).context("find output is not UTF-8")?)
-}
-
-fn parse_raw_find_lines(mut rest: &str) -> Result<Vec<RawFindLine>> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(
-            r"\A(?P<type>[dflcbsp]) 0(?P<mode>[0-7]+) (?P<size>[0-9]+|\?) (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0 (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0 (?P<inode>[0-9]+) (?P<path>[^\x00]*)\x00 (?P<target>[^\x00]*)\x00\n"
-        )
-        .unwrap();
-    }
     let mut lines = vec![];
+    let mut rest = str::from_utf8(&output.stdout).unwrap();
     while !rest.is_empty() {
         let caps = RE.captures(rest).unwrap();
-        lines.push(RawFindLine {
-            ty: caps["type"].chars().nth(0).unwrap(),
-            pre_shadow: PreShadow {
-                mode: u16::from_str_radix(&caps["mode"], 8)?,
-                size: match &caps["size"] {
-                    "?" => None,
-                    size => Some(size.parse().unwrap()),
-                },
-                ctime: caps["ctime"].parse().unwrap(),
-                ctime_ns: caps["ctime_ns"].parse().unwrap(),
-                mtime: caps["mtime"].parse().unwrap(),
-                mtime_ns: caps["mtime_ns"].parse().unwrap(),
-                inode: caps["inode"].parse().unwrap(),
-            },
-            path: caps["path"].to_string(),
-            target: caps["target"].to_string(),
-        });
+        lines.push(match_line(&caps));
         rest = &rest[caps.get(0).unwrap().end()..];
     }
     Ok(lines)
+}
+
+fn match_line(caps: &Captures) -> RawFindLine {
+    RawFindLine {
+        ty: caps["type"].chars().nth(0).unwrap(),
+        pre_shadow: PreShadow {
+            mode: u16::from_str_radix(&caps["mode"], 8).unwrap(),
+            size: match &caps["size"] {
+                "?" => None,
+                size => Some(size.parse().unwrap()),
+            },
+            ctime: caps["ctime"].parse().unwrap(),
+            ctime_ns: caps["ctime_ns"].parse().unwrap(),
+            mtime: caps["mtime"].parse().unwrap(),
+            mtime_ns: caps["mtime_ns"].parse().unwrap(),
+            inode: caps["inode"].parse().unwrap(),
+        },
+        path: caps["path"].to_string(),
+        target: caps["target"].to_string(),
+    }
 }
 
 fn parse_find_output(lines: Vec<RawFindLine>) -> Result<Snapshot<PreShadow>> {
@@ -182,16 +194,7 @@ fn parse_find_output_inner(
 
 fn refine_shadow(subject: &Path, path: &ShadowPath, pre: PreShadow) -> Result<Shadow> {
     let file_path = path.append_to(subject);
-    let metadata = fs::symlink_metadata(&file_path)?;
-    let post = PreShadow {
-        mode: (metadata.mode() & 0o7777) as u16,
-        size: Some(metadata.size()),
-        ctime: metadata.ctime(),
-        ctime_ns: metadata.ctime_nsec(),
-        mtime: metadata.mtime(),
-        mtime_ns: metadata.mtime_nsec(),
-        inode: metadata.ino(),
-    };
+    let post = stat_pre_shadow(&file_path)?;
     ensure!(
         pre == post,
         "{} changed while taking snapshot: {:?} != {:?}",
@@ -201,4 +204,17 @@ fn refine_shadow(subject: &Path, path: &ShadowPath, pre: PreShadow) -> Result<Sh
     );
     let content_hash = sha256sum(&file_path)?;
     Ok(Shadow::new(content_hash, pre.size))
+}
+
+fn stat_pre_shadow(path: &Path) -> Result<PreShadow> {
+    let metadata = fs::symlink_metadata(&path)?;
+    Ok(PreShadow {
+        mode: (metadata.mode() & 0o7777) as u16,
+        size: Some(metadata.size()),
+        ctime: metadata.ctime(),
+        ctime_ns: metadata.ctime_nsec(),
+        mtime: metadata.mtime(),
+        mtime_ns: metadata.mtime_nsec(),
+        inode: metadata.ino(),
+    })
 }
