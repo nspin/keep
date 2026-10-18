@@ -9,7 +9,6 @@ mod append;
 mod remove;
 mod traverse;
 mod snapshot;
-mod index;
 mod fs;
 
 pub use traverse::{

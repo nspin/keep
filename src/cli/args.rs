@@ -86,11 +86,6 @@ pub enum Command {
         #[arg(default_value = "HEAD")]
         big_tree: String,
     },
-    AddToIndex {
-        mode: String,
-        tree: String,
-        relative_path: ShadowPath,
-    },
 }
 
 impl Args {
@@ -118,8 +113,7 @@ impl Args {
             | Command::UniqueBlobs { .. }
             | Command::PlantSnapshot { .. }
             | Command::Append { .. }
-            | Command::Remove { .. }
-            | Command::AddToIndex { .. } => (true, false),
+            | Command::Remove { .. } => (true, false),
             Command::Sha256Sum { .. } => (false, false),
         };
         if needs_git_dir && self.git_dir.is_none() {

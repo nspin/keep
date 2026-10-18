@@ -176,16 +176,6 @@ impl Args {
                 let new_tree = db.remove(big_tree, &relative_path)?;
                 println!("{}", new_tree)
             }
-            Command::AddToIndex {
-                mode,
-                tree,
-                relative_path,
-            } => {
-                let db = self.database()?;
-                let tree = db.resolve_treeish(&tree)?;
-                assert_eq!(mode, &format!("{:06o}", u32::from(FileMode::Tree)));
-                db.add_to_index(FileMode::Tree, tree, relative_path)?;
-            }
         }
         Ok(())
     }
