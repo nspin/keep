@@ -100,6 +100,9 @@ impl Substance for FilesystemSubstance {
 
         partial_file.set_permissions(Permissions::from_mode(0o444))?;
 
+        // NOTE
+        // Could use digest_io::HashReader to hash and copy at the same time, but would miss out on
+        // copy_file_range specialization.
         check_sha256sum(blob, &partial_path)?;
 
         let blob_parent = self.blob_parent(blob);
