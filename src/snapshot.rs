@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{ensure, Context, Result};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 
@@ -201,28 +201,30 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
 }
 
 fn parse_find_output(lines: Vec<RawFindLine>) -> Result<Snapshot<Meta>> {
-    let mut entries = lines
+    let mut lines = lines
         .into_iter()
-        .map(|line| Ok((line.path.parse::<ShadowPath>()?, line)))
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
+        .filter(|line| {
+            let keep = matches!(line.meta.ty, 'f'|'l'|'d');
+            if !keep {
+                log::warn!("skipping {:?}", line);
+            }
+            keep
+        })
         .peekable();
-    let (path, line) = entries.next().ok_or_else(|| anyhow!("empty find output"))?;
-    ensure!(path.components().is_empty(), "first find output entry is not the root");
-    let ret = parse_find_output_inner(&mut entries, &path, line)?
-        .ok_or_else(|| anyhow!("unsupported root file type"))?;
-    if let Some((path, _)) = entries.peek() {
-        bail!("find output entry out of order: {}", path);
-    }
-    Ok(ret)
+    let line = lines.next().unwrap();
+    let line_path = line.path.parse::<ShadowPath>()?;
+    assert!(line_path.components().is_empty());
+    let snapshot = parse_find_output_inner(&mut lines, line, &line_path)?;
+    assert!(lines.peek().is_none());
+    Ok(snapshot)
 }
 
 fn parse_find_output_inner(
-    entries: &mut Peekable<impl Iterator<Item = (ShadowPath, RawFindLine)>>,
-    path: &ShadowPath,
+    lines: &mut Peekable<impl Iterator<Item = RawFindLine>>,
     line: RawFindLine,
-) -> Result<Option<Snapshot<Meta>>> {
-    Ok(Some(match line.meta.ty {
+    line_path: &ShadowPath,
+) -> Result<Snapshot<Meta>> {
+    Ok(match line.meta.ty {
         'f' => {
             let executable = line.meta.is_executable();
             Snapshot::File {
@@ -232,24 +234,19 @@ fn parse_find_output_inner(
         }
         'l' => Snapshot::Link { target: line.target },
         'd' => {
-            let mut children = BTreeMap::new();
-            while let Some((child_path, _)) = entries.peek() {
-                if let Some((_, parent)) = child_path.components().split_last() && parent == path.components() {
-                    let (mut child_path, child_line) = entries.next().unwrap();
-                    let child = parse_find_output_inner(entries, &child_path, child_line)?;
-                    let child_name = child_path.pop().unwrap();
-                    if let Some(child) = child {
-                        assert!(children.insert(child_name, child).is_none());
-                    }
+            let mut entries = BTreeMap::new();
+            while let Some(next_line) = lines.peek() {
+                let next_line_path = next_line.path.parse::<ShadowPath>()?;
+                if let Some([name]) = next_line_path.components().strip_prefix(line_path.components()) {
+                    let next_line = lines.next().unwrap();
+                    let value = parse_find_output_inner(lines, next_line, &next_line_path)?;
+                    assert!(entries.insert(name.clone(), value).is_none());
                 } else {
                     break;
                 }
             }
-            Snapshot::Tree { entries: children }
+            Snapshot::Tree { entries }
         }
-        _ => {
-            log::warn!("skipping {:?}", line);
-            return Ok(None);
-        }
-    }))
+        _ => unreachable!(),
+    })
 }
