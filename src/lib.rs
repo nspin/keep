@@ -15,7 +15,7 @@ pub use crate::{
         Shadow, ContentSha256,
     },
     substance::{
-        Substance, FilesystemSubstance, MockSubstance,
+        Substance, FilesystemSubstance,
         sha256sum,
     },
     snapshot::{

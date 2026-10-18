@@ -119,29 +119,6 @@ fn ensure_dir_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub struct MockSubstance {
-    token_blob_path: PathBuf,
-}
-
-impl MockSubstance {
-    pub fn new(token_blob_path: impl AsRef<Path>) -> Self {
-        Self {
-            token_blob_path: token_blob_path.as_ref().to_path_buf(),
-        }
-    }
-}
-
-impl Substance for MockSubstance {
-    fn blob_path(&self, _: &ContentSha256) -> PathBuf {
-        self.token_blob_path.clone()
-    }
-
-    fn store(&self, blob: &ContentSha256, src: &Path) -> Result<()> {
-        check_sha256sum(blob, src)?;
-        Ok(())
-    }
-}
-
 pub fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
     lazy_static! {
         static ref RE: Regex =
