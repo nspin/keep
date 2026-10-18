@@ -45,7 +45,7 @@ impl Database {
         for arg in args {
             cmd.arg(arg.as_ref());
         }
-        eprintln!("{:?}", cmd);
+        eprintln!("{:?}", cmd); // TODO remove
         exit_ok(cmd.status()?)?;
         Ok(())
     }
