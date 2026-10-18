@@ -93,14 +93,9 @@ impl Substance for FilesystemSubstance {
             .write(true)
             .open(&partial_path)?;
 
-        // TODO
-        // - https://github.com/rust-lang/rust/blob/55ccbd090d96ec3bb28dbcb383e65bbfa3c293ff/library/std/src/sys/unix/fs.rs#L1277
-        // - linux:
-        //      - copy_file_range
-        //      - https://lwn.net/Articles/846403/, https://lwn.net/Articles/846670/
-        //      - https://github.com/rust-lang/rust/commit/4ddedd521418d67e845ecb43dc02c09b0af53022
-        // - macos:
-        //      - fclonefileat and fcopyfile
+        // NOTE
+        // On Linux, io::copy is specialized to use copy_file_range. On MacOS, fs::copy is
+        // specialized to use fclonefileat and fcopyfile, but io::copy has not been specialized yet.
         io::copy(&mut source_file, &mut partial_file)?;
 
         partial_file.set_permissions(Permissions::from_mode(0o444))?;
