@@ -11,8 +11,7 @@ use anyhow::{Context, Result, ensure};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 
-use crate::ShadowPathComponent;
-use crate::{Shadow, ShadowPath, sha256sum};
+use crate::{ShadowPathComponent, Shadow, ShadowPath, sha256sum};
 
 #[derive(Clone, Debug)]
 pub enum Snapshot<T = Shadow> {
