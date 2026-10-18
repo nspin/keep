@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io;
 use std::path::Path;
 
 use anyhow::Result;
@@ -33,17 +33,12 @@ impl Database {
                 } else {
                     FileMode::Blob
                 };
-                let mut writer = self.repository().blob_writer(None)?;
-                writer.write_all(&shadow.to_bytes())?;
-                let oid = writer.commit()?;
+                let oid = self.repository().blob(&shadow.to_bytes())?;
                 (mode, oid)
             }
             SnapshotEntryValue::Link { target } => {
                 let mode = FileMode::Link;
-                let content = target.as_bytes();
-                let mut writer = self.repository().blob_writer(None)?;
-                writer.write_all(content)?;
-                let oid = writer.commit()?;
+                let oid = self.repository().blob(target.as_bytes())?;
                 (mode, oid)
             }
             SnapshotEntryValue::Tree => {

@@ -51,8 +51,7 @@ impl Database {
     }
 
     pub fn empty_blob_oid(&self) -> Result<Oid> {
-        let writer = self.repository().blob_writer(None)?;
-        Ok(writer.commit()?)
+        Ok(self.repository().blob(&[])?)
     }
 
     pub fn shallow_diff(
