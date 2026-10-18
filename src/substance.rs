@@ -86,11 +86,7 @@ impl Substance for FilesystemSubstance {
         let mut source_file = OpenOptions::new().read(true).open(src)?;
 
         let partial_parent = self.partial_parent(blob);
-        if partial_parent.exists() {
-            assert!(partial_parent.is_dir());
-        } else {
-            fs::create_dir(&partial_parent)?;
-        }
+        ensure_dir_exists(&partial_parent)?;
 
         let mut partial_file = OpenOptions::new()
             .create_new(true)
@@ -112,15 +108,20 @@ impl Substance for FilesystemSubstance {
         check_sha256sum(blob, &partial_path)?;
 
         let blob_parent = self.blob_parent(blob);
-        if blob_parent.exists() {
-            assert!(blob_parent.is_dir());
-        } else {
-            fs::create_dir(blob_parent)?;
-        }
+        ensure_dir_exists(&blob_parent)?;
 
         fs::rename(&partial_path, &blob_path)?;
         Ok(())
     }
+}
+
+fn ensure_dir_exists(path: &Path) -> Result<()> {
+    if path.exists() {
+        assert!(path.is_dir());
+    } else {
+        fs::create_dir(path)?;
+    }
+    Ok(())
 }
 
 pub struct MockSubstance {
