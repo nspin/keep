@@ -22,7 +22,14 @@ pub enum Snapshot<T = Shadow> {
 }
 
 impl<T> Snapshot<T> {
-    fn traverse_with_path<U, E, F>(self, path: &mut ShadowPath, f: &mut F) -> Result<Snapshot<U>, E>
+    fn traverse_with_path<U, E, F>(self, f: &mut F) -> Result<Snapshot<U>, E>
+    where
+        F: FnMut(&ShadowPath, T) -> Result<U, E>,
+    {
+        self.traverse_with_path_inner(&mut ShadowPath::new(), f)
+    }
+
+    fn traverse_with_path_inner<U, E, F>(self, path: &mut ShadowPath, f: &mut F) -> Result<Snapshot<U>, E>
     where
         F: FnMut(&ShadowPath, T) -> Result<U, E>,
     {
@@ -37,7 +44,7 @@ impl<T> Snapshot<T> {
                     .into_iter()
                     .map(|(name, value)| {
                         path.push(name);
-                        let value = value.traverse_with_path(path, f);
+                        let value = value.traverse_with_path_inner(path, f);
                         let name = path.pop().unwrap();
                         Ok((name, value?))
                     })
@@ -49,18 +56,13 @@ impl<T> Snapshot<T> {
 
 impl Snapshot {
     pub fn take(subject: &Path) -> Result<Snapshot> {
-        let lines = run_find(subject)?;
-        parse_find_output(lines)?.traverse_with_path(&mut ShadowPath::new(), &mut |path, meta| {
-            refine_shadow(subject, path, meta)
+        parse_find_output(run_find(subject)?)?.traverse_with_path(&mut |path, meta| {
+            let file_path = path.append_to(subject);
+            meta.check(&file_path)?;
+            let content_hash = sha256sum(&file_path)?;
+            Ok(Shadow::new(content_hash, Some(meta.size)))
         })
     }
-}
-
-#[derive(Debug)]
-struct RawFindLine {
-    meta: Meta,
-    path: String,
-    target: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -82,29 +84,110 @@ impl Meta {
     fn is_executable(&self) -> bool {
         self.perms & 0o100 != 0
     }
+
+    fn stat(path: &Path) -> Result<Self> {
+        let metadata = fs::symlink_metadata(&path)?;
+        let ty = match metadata.mode() >> 12 {
+            0o10 => 'f',
+            0o04 => 'd',
+            0o12 => 'l',
+            0o06 => 'b',
+            0o02 => 'c',
+            0o01 => 'p',
+            0o14 => 's',
+            _ => panic!(),
+        };
+        let perms = (metadata.mode() & 0o7777).try_into().unwrap();
+        Ok(Self {
+            ty,
+            perms,
+            size: metadata.size(),
+            ctime: metadata.ctime(),
+            ctime_ns: metadata.ctime_nsec(),
+            mtime: metadata.mtime(),
+            mtime_ns: metadata.mtime_nsec(),
+            inode: metadata.ino(),
+            uid: metadata.uid(),
+            gid: metadata.gid(),
+            dev: metadata.dev(),
+        })
+    }
+
+    fn check(&self, path: &Path) -> Result<()> {
+        let actual = Self::stat(&path)?;
+        ensure!(
+            self == &actual,
+            "{} changed while taking snapshot: {:?} != {:?}",
+            path.display(),
+            self,
+            actual
+        );
+        Ok(())
+    }
+}
+
+
+#[derive(Debug)]
+struct RawFindLine {
+    meta: Meta,
+    path: String,
+    target: String,
+}
+
+impl RawFindLine {
+    fn parse(s: &str) -> Vec<Self> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(
+                r"(?x)
+                \A
+                (?P<type>[dflcbsp])                             # %y
+                \ 0(?P<perms>[0-7]*)                            # %#m
+                \ (?P<size>[0-9]+)                              # %s
+                \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
+                \ (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0    # %T@
+                \ (?P<inode>[0-9]+)                             # %i
+                \ (?P<uid>[0-9]+)                               # %U
+                \ (?P<gid>[0-9]+)                               # %G
+                \ (?P<dev>[0-9]+)                               # %D
+                \ (?P<path>[^\x00]*)\x00                        # %P\0
+                \ (?P<target>[^\x00]*)\x00                      # %l\0
+                \n
+                "
+            )
+            .unwrap();
+        }
+        let mut lines = vec![];
+        let mut rest = s;
+        while !rest.is_empty() {
+            let caps = RE.captures(rest).unwrap();
+            lines.push(Self::parse_captures(&caps));
+            rest = &rest[caps.get(0).unwrap().end()..];
+        }
+        lines
+    }
+
+    fn parse_captures(caps: &Captures) -> Self {
+        Self {
+            meta: Meta {
+                ty: caps["type"].chars().nth(0).unwrap(),
+                perms: u16::from_str_radix(&caps["perms"], 8).unwrap(),
+                size: caps["size"].parse().unwrap(),
+                ctime: caps["ctime"].parse().unwrap(),
+                ctime_ns: caps["ctime_ns"].parse().unwrap(),
+                mtime: caps["mtime"].parse().unwrap(),
+                mtime_ns: caps["mtime_ns"].parse().unwrap(),
+                inode: caps["inode"].parse().unwrap(),
+                uid: caps["uid"].parse().unwrap(),
+                gid: caps["gid"].parse().unwrap(),
+                dev: caps["dev"].parse().unwrap(),
+            },
+            path: caps["path"].to_string(),
+            target: caps["target"].to_string(),
+        }
+    }
 }
 
 fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(
-            r"(?x)
-            \A
-            (?P<type>[dflcbsp])                             # %y
-            \ 0(?P<perms>[0-7]*)                            # %#m
-            \ (?P<size>[0-9]+)                              # %s
-            \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
-            \ (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0    # %T@
-            \ (?P<inode>[0-9]+)                             # %i
-            \ (?P<uid>[0-9]+)                               # %U
-            \ (?P<gid>[0-9]+)                               # %G
-            \ (?P<dev>[0-9]+)                               # %D
-            \ (?P<path>[^\x00]*)\x00                        # %P\0
-            \ (?P<target>[^\x00]*)\x00                      # %l\0
-            \n
-            "
-        )
-        .unwrap();
-    }
     assert!(!subject.as_os_str().as_bytes().starts_with(b"-"));
     let output = Command::new("find")
         .arg(&subject)
@@ -114,34 +197,7 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
         .output()
         .context("failed to run find")?;
     exit_ok(output.status)?;
-    let mut lines = vec![];
-    let mut rest = str::from_utf8(&output.stdout).unwrap();
-    while !rest.is_empty() {
-        let caps = RE.captures(rest).unwrap();
-        lines.push(match_line(&caps));
-        rest = &rest[caps.get(0).unwrap().end()..];
-    }
-    Ok(lines)
-}
-
-fn match_line(caps: &Captures) -> RawFindLine {
-    RawFindLine {
-        meta: Meta {
-            ty: caps["type"].chars().nth(0).unwrap(),
-            perms: u16::from_str_radix(&caps["perms"], 8).unwrap(),
-            size: caps["size"].parse().unwrap(),
-            ctime: caps["ctime"].parse().unwrap(),
-            ctime_ns: caps["ctime_ns"].parse().unwrap(),
-            mtime: caps["mtime"].parse().unwrap(),
-            mtime_ns: caps["mtime_ns"].parse().unwrap(),
-            inode: caps["inode"].parse().unwrap(),
-            uid: caps["uid"].parse().unwrap(),
-            gid: caps["gid"].parse().unwrap(),
-            dev: caps["dev"].parse().unwrap(),
-        },
-        path: caps["path"].to_string(),
-        target: caps["target"].to_string(),
-    }
+    Ok(RawFindLine::parse(str::from_utf8(&output.stdout).unwrap()))
 }
 
 fn parse_find_output(lines: Vec<RawFindLine>) -> Result<Snapshot<Meta>> {
@@ -196,46 +252,4 @@ fn parse_find_output_inner(
             return Ok(None);
         }
     }))
-}
-
-fn refine_shadow(subject: &Path, path: &ShadowPath, meta: Meta) -> Result<Shadow> {
-    let file_path = path.append_to(subject);
-    let cur_meta = stat_meta(&file_path)?;
-    ensure!(
-        meta == cur_meta,
-        "{} changed while taking snapshot: {:?} != {:?}",
-        file_path.display(),
-        meta,
-        cur_meta
-    );
-    let content_hash = sha256sum(&file_path)?;
-    Ok(Shadow::new(content_hash, Some(meta.size)))
-}
-
-fn stat_meta(path: &Path) -> Result<Meta> {
-    let metadata = fs::symlink_metadata(&path)?;
-    let ty = match metadata.mode() >> 12 {
-        0o10 => 'f',
-        0o04 => 'd',
-        0o12 => 'l',
-        0o06 => 'b',
-        0o02 => 'c',
-        0o01 => 'p',
-        0o14 => 's',
-        _ => panic!(),
-    };
-    let perms = (metadata.mode() & 0o7777).try_into().unwrap();
-    Ok(Meta {
-        ty,
-        perms,
-        size: metadata.size(),
-        ctime: metadata.ctime(),
-        ctime_ns: metadata.ctime_nsec(),
-        mtime: metadata.mtime(),
-        mtime_ns: metadata.mtime_nsec(),
-        inode: metadata.ino(),
-        uid: metadata.uid(),
-        gid: metadata.gid(),
-        dev: metadata.dev(),
-    })
 }
