@@ -50,23 +50,23 @@ impl<T> Snapshot<T> {
 impl Snapshot {
     pub fn take(subject: &Path) -> Result<Snapshot> {
         let lines = run_find(subject)?;
-        parse_find_output(lines)?.traverse_with_path(&mut ShadowPath::new(), &mut |path, pre| {
-            refine_shadow(subject, path, pre)
+        parse_find_output(lines)?.traverse_with_path(&mut ShadowPath::new(), &mut |path, meta| {
+            refine_shadow(subject, path, meta)
         })
     }
 }
 
 #[derive(Debug)]
 struct RawFindLine {
-    ty: char, // [dflcbsp]
-    pre_shadow: PreShadow,
+    meta: Meta,
     path: String,
     target: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct PreShadow {
-    mode: u16,
+struct Meta {
+    ty: char, // [dflcbsp]
+    perms: u16,
     size: u64,
     ctime: i64,
     ctime_ns: i64,
@@ -78,9 +78,9 @@ struct PreShadow {
     dev: u64,
 }
 
-impl RawFindLine {
+impl Meta {
     fn is_executable(&self) -> bool {
-        self.pre_shadow.mode & 0o100 != 0
+        self.perms & 0o100 != 0
     }
 }
 
@@ -90,7 +90,7 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
             r"(?x)
             \A
             (?P<type>[dflcbsp])                             # %y
-            \ 0(?P<mode>[0-7]+)                             # %#m
+            \ 0(?P<perms>[0-7]*)                            # %#m
             \ (?P<size>[0-9]+)                              # %s
             \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
             \ (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0    # %T@
@@ -126,9 +126,9 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
 
 fn match_line(caps: &Captures) -> RawFindLine {
     RawFindLine {
-        ty: caps["type"].chars().nth(0).unwrap(),
-        pre_shadow: PreShadow {
-            mode: u16::from_str_radix(&caps["mode"], 8).unwrap(),
+        meta: Meta {
+            ty: caps["type"].chars().nth(0).unwrap(),
+            perms: u16::from_str_radix(&caps["perms"], 8).unwrap(),
             size: caps["size"].parse().unwrap(),
             ctime: caps["ctime"].parse().unwrap(),
             ctime_ns: caps["ctime_ns"].parse().unwrap(),
@@ -144,7 +144,7 @@ fn match_line(caps: &Captures) -> RawFindLine {
     }
 }
 
-fn parse_find_output(lines: Vec<RawFindLine>) -> Result<Snapshot<PreShadow>> {
+fn parse_find_output(lines: Vec<RawFindLine>) -> Result<Snapshot<Meta>> {
     let mut entries = lines
         .into_iter()
         .map(|line| Ok((line.path.parse::<ShadowPath>()?, line)))
@@ -165,12 +165,12 @@ fn parse_find_output_inner(
     entries: &mut Peekable<impl Iterator<Item = (ShadowPath, RawFindLine)>>,
     path: &ShadowPath,
     line: RawFindLine,
-) -> Result<Option<Snapshot<PreShadow>>> {
-    Ok(Some(match line.ty {
+) -> Result<Option<Snapshot<Meta>>> {
+    Ok(Some(match line.meta.ty {
         'f' => {
-            let executable = line.is_executable();
+            let executable = line.meta.is_executable();
             Snapshot::File {
-                shadow: line.pre_shadow,
+                shadow: line.meta,
                 executable,
             }
         }
@@ -198,24 +198,36 @@ fn parse_find_output_inner(
     }))
 }
 
-fn refine_shadow(subject: &Path, path: &ShadowPath, pre: PreShadow) -> Result<Shadow> {
+fn refine_shadow(subject: &Path, path: &ShadowPath, meta: Meta) -> Result<Shadow> {
     let file_path = path.append_to(subject);
-    let post = stat_pre_shadow(&file_path)?;
+    let cur_meta = stat_meta(&file_path)?;
     ensure!(
-        pre == post,
+        meta == cur_meta,
         "{} changed while taking snapshot: {:?} != {:?}",
         file_path.display(),
-        pre,
-        post
+        meta,
+        cur_meta
     );
     let content_hash = sha256sum(&file_path)?;
-    Ok(Shadow::new(content_hash, Some(pre.size)))
+    Ok(Shadow::new(content_hash, Some(meta.size)))
 }
 
-fn stat_pre_shadow(path: &Path) -> Result<PreShadow> {
+fn stat_meta(path: &Path) -> Result<Meta> {
     let metadata = fs::symlink_metadata(&path)?;
-    Ok(PreShadow {
-        mode: (metadata.mode() & 0o7777) as u16,
+    let ty = match metadata.mode() >> 12 {
+        0o10 => 'f',
+        0o04 => 'd',
+        0o12 => 'l',
+        0o06 => 'b',
+        0o02 => 'c',
+        0o01 => 'p',
+        0o14 => 's',
+        _ => panic!(),
+    };
+    let perms = (metadata.mode() & 0o7777).try_into().unwrap();
+    Ok(Meta {
+        ty,
+        perms,
         size: metadata.size(),
         ctime: metadata.ctime(),
         ctime_ns: metadata.ctime_nsec(),
