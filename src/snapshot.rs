@@ -67,7 +67,7 @@ struct RawFindLine {
 #[derive(Debug, PartialEq, Eq)]
 struct PreShadow {
     mode: u16,
-    size: Option<u64>,
+    size: u64,
     ctime: i64,
     ctime_ns: i64,
     mtime: i64,
@@ -91,7 +91,7 @@ fn run_find(subject: &Path) -> Result<Vec<RawFindLine>> {
             \A
             (?P<type>[dflcbsp])                             # %y
             \ 0(?P<mode>[0-7]+)                             # %#m
-            \ (?P<size>[0-9]+|\?)                           # %s
+            \ (?P<size>[0-9]+)                              # %s
             \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
             \ (?P<mtime>[0-9]+)\.(?P<mtime_ns>[0-9]{9})0    # %T@
             \ (?P<inode>[0-9]+)                             # %i
@@ -129,10 +129,7 @@ fn match_line(caps: &Captures) -> RawFindLine {
         ty: caps["type"].chars().nth(0).unwrap(),
         pre_shadow: PreShadow {
             mode: u16::from_str_radix(&caps["mode"], 8).unwrap(),
-            size: match &caps["size"] {
-                "?" => None,
-                size => Some(size.parse().unwrap()),
-            },
+            size: caps["size"].parse().unwrap(),
             ctime: caps["ctime"].parse().unwrap(),
             ctime_ns: caps["ctime_ns"].parse().unwrap(),
             mtime: caps["mtime"].parse().unwrap(),
@@ -212,14 +209,14 @@ fn refine_shadow(subject: &Path, path: &ShadowPath, pre: PreShadow) -> Result<Sh
         post
     );
     let content_hash = sha256sum(&file_path)?;
-    Ok(Shadow::new(content_hash, pre.size))
+    Ok(Shadow::new(content_hash, Some(pre.size)))
 }
 
 fn stat_pre_shadow(path: &Path) -> Result<PreShadow> {
     let metadata = fs::symlink_metadata(&path)?;
     Ok(PreShadow {
         mode: (metadata.mode() & 0o7777) as u16,
-        size: Some(metadata.size()),
+        size: metadata.size(),
         ctime: metadata.ctime(),
         ctime_ns: metadata.ctime_nsec(),
         mtime: metadata.mtime(),
