@@ -125,10 +125,9 @@ impl Args {
                     if !substance.have_blob(blob.content_hash()) {
                         println!("missing blob: {} {}", blob.content_hash(), path);
                     }
-                    if *deep
-                        && !substance.check_blob(blob.content_hash()).is_ok() {
-                            println!("invalid blob: {} {}", blob.content_hash(), path);
-                        }
+                    if *deep && !substance.check_blob(blob.content_hash()).is_ok() {
+                        println!("invalid blob: {} {}", blob.content_hash(), path);
+                    }
                     Ok(())
                 })?;
             }

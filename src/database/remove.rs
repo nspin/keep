@@ -12,11 +12,7 @@ impl Database {
         self.remove_inner(big_tree, path.components())
     }
 
-    fn remove_inner(
-        &self,
-        big_tree: Oid,
-        path: &[ShadowPathComponent],
-    ) -> Result<Oid> {
+    fn remove_inner(&self, big_tree: Oid, path: &[ShadowPathComponent]) -> Result<Oid> {
         let orig = self.repository().find_tree(big_tree)?;
         let mut builder = self.repository().treebuilder(Some(&orig))?;
         let (head, tail) = path.split_first().unwrap();
