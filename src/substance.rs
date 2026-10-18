@@ -122,7 +122,22 @@ fn ensure_dir_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
+pub fn sha256sum(path: &Path) -> Result<ContentSha256> {
+    sha256sum_rust(path)
+    // sha256sum_coreutils(path)
+}
+
+#[allow(dead_code)]
+fn sha256sum_rust(path: &Path) -> Result<ContentSha256> {
+    let mut file = OpenOptions::new().read(true).open(path)?;
+    let mut hasher = IoWrapper(Sha256::new());
+    io::copy(&mut file, &mut hasher)?;
+    let hash = hasher.0.finalize();
+    Ok(ContentSha256::from_slice(&hash))
+}
+
+#[allow(dead_code)]
+fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
     lazy_static! {
         static ref RE: Regex =
             Regex::new(r"(?-u)(?P<digest>[a-z0-9]{64}|[?]{64}) \*(?P<path>.*)\x00").unwrap();
@@ -140,20 +155,6 @@ pub fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
         .captures(&output.stdout)
         .ok_or(anyhow!("regex does not match"))?;
     Ok(std::str::from_utf8(&caps["digest"])?.parse()?)
-}
-
-#[allow(dead_code)]
-pub fn sha256sum_rust(path: &Path) -> Result<ContentSha256> {
-    let mut file = OpenOptions::new().read(true).open(path)?;
-    let mut hasher = IoWrapper(Sha256::new());
-    io::copy(&mut file, &mut hasher)?;
-    let hash = hasher.0.finalize();
-    Ok(ContentSha256::from_slice(&hash))
-}
-
-pub fn sha256sum(path: &Path) -> Result<ContentSha256> {
-    // sha256sum_coreutils(path)
-    sha256sum_rust(path)
 }
 
 fn check_sha256sum(expected: &ContentSha256, path: &Path) -> Result<()> {
