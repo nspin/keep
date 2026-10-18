@@ -59,6 +59,7 @@ impl Snapshot {
         parse_find_output(run_find(subject)?)?.traverse_with_path(&mut |path, meta| {
             let file_path = path.append_to(subject);
             meta.check(&file_path)?;
+            eprint!(".");
             let content_hash = sha256sum(&file_path)?;
             Ok(Shadow::new(content_hash, Some(meta.size)))
         })
