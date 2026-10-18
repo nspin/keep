@@ -149,8 +149,6 @@ fn sha256sum_coreutils(path: &Path) -> Result<ContentSha256> {
         .output()
         .unwrap();
     exit_ok(output.status)?;
-    // use std::os::unix::ffi::OsStrExt;
-    // eprintln!("{:?}", std::ffi::OsStr::from_bytes(&output.stdout));
     let caps = RE
         .captures(&output.stdout)
         .ok_or(anyhow!("regex does not match"))?;
