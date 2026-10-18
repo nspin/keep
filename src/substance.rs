@@ -152,7 +152,8 @@ pub fn sha256sum_rust(path: &Path) -> Result<ContentSha256> {
 }
 
 pub fn sha256sum(path: &Path) -> Result<ContentSha256> {
-    sha256sum_coreutils(path)
+    // sha256sum_coreutils(path)
+    sha256sum_rust(path)
 }
 
 fn check_sha256sum(expected: &ContentSha256, path: &Path) -> Result<()> {
