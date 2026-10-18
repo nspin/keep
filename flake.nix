@@ -54,7 +54,6 @@
           postInstall = ''
             wrapProgram $out/bin/keep \
               --prefix PATH : ${pkgs.lib.makeBinPath (with pkgs; [
-                git
                 findutils
                 coreutils
               ])}
@@ -67,7 +66,6 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            git
             findutils
             coreutils
             rustup

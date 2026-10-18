@@ -1,9 +1,7 @@
-use std::process::Command;
-
 use anyhow::{Error, Result};
 use git2::{Commit, Oid, Repository, Signature, Tree};
 
-use crate::{exit_ok, shallow_diff, ShallowDifference};
+use crate::{shallow_diff, ShallowDifference};
 
 mod append;
 mod remove;
@@ -37,18 +35,6 @@ impl Database {
             .id())
     }
 
-    pub fn invoke_git(&self, args: &[impl AsRef<str>]) -> Result<()> {
-        let mut cmd = Command::new("git");
-        cmd.env_clear();
-        cmd.env("GIT_DIR", self.repository().path());
-        for arg in args {
-            cmd.arg(arg.as_ref());
-        }
-        eprintln!("{:?}", cmd); // TODO remove
-        exit_ok(cmd.status()?)?;
-        Ok(())
-    }
-
     pub fn empty_blob_oid(&self) -> Result<Oid> {
         Ok(self.repository().blob(&[])?)
     }
@@ -75,11 +61,16 @@ impl Database {
     }
 
     pub fn safe_merge(&self, progress: Oid) -> Result<()> {
-        self.invoke_git(&[
-            "merge".to_owned(),
-            "--quiet".to_owned(),
-            "--ff-only".to_owned(),
-            progress.to_string(),
-        ])
+        let repo = self.repository();
+        let mut head = repo.head().unwrap();
+        let old = head.target().unwrap();
+        assert!(
+            progress == old || repo.graph_descendant_of(progress, old)?,
+            "{} is not a fast-forward of {}",
+            progress,
+            old
+        );
+        head.set_target(progress, "keep: fast-forward")?; // fails if HEAD moved since it was read
+        Ok(())
     }
 }
