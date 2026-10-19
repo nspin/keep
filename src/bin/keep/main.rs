@@ -50,9 +50,8 @@ impl Args {
                 let substance = self.substance()?;
                 log::info!("taking snapshot of {}", subject.display());
                 let snapshot = Snapshot::take(subject)?;
-                log::info!("planting snapshot");
                 let (mode, tree) = db.plant_snapshot(&snapshot)?;
-                log::info!("planted: {:06o},{}", u32::from(mode), tree);
+                log::info!("snapshot: {:06o},{}", u32::from(mode), tree);
                 log::info!("storing snapshot");
                 db.store_snapshot(&substance, tree, subject)?;
                 let parent = db.repository().head()?.peel_to_commit()?;
@@ -133,7 +132,7 @@ impl Args {
                 let blob = sha256sum(path)?;
                 println!("{} *{}", blob, path.display());
             }
-            Command::PlantSnapshot { subject } => {
+            Command::TakeSnapshot { subject } => {
                 let db = self.database()?;
                 let snapshot = Snapshot::take(subject)?;
                 let (mode, tree) = db.plant_snapshot(&snapshot)?;

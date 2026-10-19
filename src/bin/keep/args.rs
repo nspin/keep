@@ -65,7 +65,7 @@ pub enum Command {
     Sha256Sum {
         path: PathBuf,
     },
-    PlantSnapshot {
+    TakeSnapshot {
         subject: PathBuf,
     },
     StoreSnapshot {
@@ -111,7 +111,7 @@ impl Args {
             Command::Diff { .. }
             | Command::Check { .. }
             | Command::UniqueBlobs { .. }
-            | Command::PlantSnapshot { .. }
+            | Command::TakeSnapshot { .. }
             | Command::Append { .. }
             | Command::Remove { .. } => (true, false),
             Command::Sha256Sum { .. } => (false, false),
