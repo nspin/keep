@@ -6,31 +6,15 @@ mod shallow_diff;
 mod snapshot;
 mod substance;
 
-#[rustfmt::skip]
 pub use crate::{
-    paths::{
-        ShadowPath, ShadowPathComponent, ShadowTreeEntryName,
-    },
-    shadow::{
-        Shadow, ContentSha256,
-    },
-    substance::{
-        Substance, FilesystemSubstance,
-        sha256sum,
-    },
-    snapshot::{
-        Snapshot,
-    },
-    shallow_diff::{
-        ShallowDifference, ShallowDifferenceSide,
-        shallow_diff,
-    },
+    cli::cli_main,
     database::{
-        Database,
-        TraversalCallbacks, Traverser,
-        Visit, VisitShadow, VisitLink, VisitTree, VisitTreeDecision,
+        Database, TraversalCallbacks, Traverser, Visit, VisitLink, VisitShadow, VisitTree,
+        VisitTreeDecision,
     },
-    cli::{
-        cli_main,
-    },
+    paths::{ShadowPath, ShadowPathComponent, ShadowTreeEntryName},
+    shadow::{ContentSha256, Shadow},
+    shallow_diff::{ShallowDifference, ShallowDifferenceSide, shallow_diff},
+    snapshot::Snapshot,
+    substance::{FilesystemSubstance, Substance, sha256sum},
 };
