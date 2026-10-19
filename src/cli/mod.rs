@@ -13,7 +13,7 @@ use args::{Args, Command};
 pub fn cli_main() -> Result<()> {
     let args = Args::get()?;
     args.apply_verbosity();
-    args.run_command()
+    args.run()
 }
 
 impl Args {
@@ -39,7 +39,7 @@ impl Args {
         env_logger::builder().filter(None, level_filter).init();
     }
 
-    fn run_command(&self) -> Result<()> {
+    fn run(&self) -> Result<()> {
         match &self.command {
             Command::Snapshot {
                 subject,
