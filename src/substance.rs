@@ -123,8 +123,7 @@ pub fn sha256sum(path: &Path) -> Result<ContentSha256> {
     let mut file = OpenOptions::new().read(true).open(path)?;
     let mut hasher = IoWrapper(Sha256::new());
     io::copy(&mut file, &mut hasher)?;
-    let hash = hasher.0.finalize();
-    Ok(ContentSha256::from_slice(&hash))
+    Ok(ContentSha256::new(hasher.0.finalize().into()))
 }
 
 fn check_sha256sum(expected: &ContentSha256, path: &Path) -> Result<()> {

@@ -61,6 +61,14 @@ impl ShadowPath {
         self.0.pop()
     }
 
+    pub fn append_to(&self, path: impl AsRef<Path>) -> PathBuf {
+        let mut path = path.as_ref().to_owned();
+        for c in self.components() {
+            path.push(&c.0);
+        }
+        path
+    }
+
     pub fn encode(&self) -> String {
         self.components()
             .iter()
@@ -74,14 +82,6 @@ impl ShadowPath {
             .map(ShadowTreeEntryName::encode_child)
             .chain([ShadowTreeEntryName::encode_marker()])
             .join("/")
-    }
-
-    pub fn append_to(&self, path: impl AsRef<Path>) -> PathBuf {
-        let mut path = path.as_ref().to_owned();
-        for c in self.components() {
-            path.push(&c.0);
-        }
-        path
     }
 }
 

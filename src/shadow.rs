@@ -8,21 +8,24 @@ use thiserror::Error;
 
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Shadow {
-    content_hash: ContentSha256,
-    size: Option<u64>,
+    content_hash: ContentHash,
+    content_size: Option<u64>,
 }
 
 impl Shadow {
-    pub fn new(content_hash: ContentSha256, size: Option<u64>) -> Self {
-        Self { content_hash, size }
+    pub fn new(content_hash: ContentHash, content_size: Option<u64>) -> Self {
+        Self {
+            content_hash,
+            content_size,
+        }
     }
 
-    pub fn content_hash(&self) -> &ContentSha256 {
+    pub fn content_hash(&self) -> &ContentHash {
         &self.content_hash
     }
 
-    pub fn size(&self) -> Option<u64> {
-        self.size
+    pub fn content_size(&self) -> Option<u64> {
+        self.content_size
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -38,8 +41,8 @@ impl Shadow {
 impl fmt::Display for Shadow {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         writeln!(fmt, "sha256 {}", self.content_hash)?;
-        if let Some(size) = self.size {
-            writeln!(fmt, "size {}", size)?;
+        if let Some(content_size) = self.content_size {
+            writeln!(fmt, "size {}", content_size)?;
         }
         Ok(())
     }
@@ -50,22 +53,29 @@ impl FromStr for Shadow {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"^sha256 (?P<sha256>[a-z0-9]{64})\n(size (?P<size>[0-9]+)\n)?$")
-                    .unwrap();
+            static ref RE: Regex = Regex::new(
+                r"(?x)
+                ^
+                sha256\ (?P<sha256>[a-z0-9]{64})\n
+                (size\ (?P<size>[0-9]+)\n)?
+                $
+                "
+            )
+            .unwrap();
         }
         let caps = RE.captures(s).ok_or(Self::Err::MalformedShadow)?;
-
-        let content_hash = caps["sha256"].parse()?;
-        let size = caps
-            .name("size")
-            .map(|m| m.as_str().parse())
-            .transpose()
-            .map_err(Self::Err::MalformedShadowSize)?;
-
-        Ok(Self { content_hash, size })
+        Ok(Self {
+            content_hash: caps["sha256"].parse()?,
+            content_size: caps
+                .name("size")
+                .map(|m| m.as_str().parse())
+                .transpose()
+                .map_err(Self::Err::MalformedShadowSize)?,
+        })
     }
 }
+
+pub type ContentHash = ContentSha256;
 
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct ContentSha256 {
@@ -81,24 +91,23 @@ impl ContentSha256 {
 
     // precondition: digest.len() == Self::SHA256_DIGEST_SIZE
     pub fn from_slice(digest: &[u8]) -> Self {
-        assert_eq!(digest.len(), Self::SHA256_DIGEST_SIZE);
-        let mut arr = [0; Self::SHA256_DIGEST_SIZE];
-        arr.copy_from_slice(digest);
-        Self::new(arr)
+        Self::new(digest.try_into().unwrap())
     }
 
     pub fn to_hex(&self) -> String {
-        self.to_string()
+        hex::encode(self.digest)
     }
 
     pub fn from_hex(s: &str) -> Result<Self, ShadowError> {
-        Self::from_str(s)
+        let mut digest = [0; Self::SHA256_DIGEST_SIZE];
+        hex::decode_to_slice(s, &mut digest).map_err(ShadowError::MalformedShadowContentHashHex)?;
+        Ok(Self::new(digest))
     }
 }
 
 impl fmt::Display for ContentSha256 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", hex::encode(self.digest))
+        write!(fmt, "{}", self.to_hex())
     }
 }
 
@@ -106,9 +115,7 @@ impl FromStr for ContentSha256 {
     type Err = ShadowError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut digest = [0; Self::SHA256_DIGEST_SIZE];
-        hex::decode_to_slice(s, &mut digest).map_err(ShadowError::MalformedShadowContentHashHex)?;
-        Ok(Self::new(digest))
+        Self::from_hex(s)
     }
 }
 

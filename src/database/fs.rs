@@ -181,7 +181,7 @@ impl<T: Substance> DatabaseFilesystemState<T> {
                 let perm = 0o444 | (if *executable { 0o000 } else { 0o111 });
                 let blob = self.repository.find_blob(*oid)?;
                 let shadow = Shadow::from_bytes(blob.content())?;
-                let size = shadow.size().unwrap_or(0);
+                let size = shadow.content_size().unwrap_or(0);
                 (kind, perm, size)
             }
             InodeEntry::Link { oid } => {
