@@ -4,13 +4,13 @@ use anyhow::Result;
 use git2::{FileMode, Repository};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use crate::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, Substance, sha256sum};
+use keep::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, Substance, sha256sum};
 
 mod args;
 
 use args::{Args, Command};
 
-pub fn cli_main() -> Result<()> {
+pub fn main() -> Result<()> {
     let args = Args::get()?;
     args.apply_verbosity();
     args.run()

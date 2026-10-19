@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Result, anyhow};
 use clap::{ArgAction, Parser, Subcommand};
 
-use crate::ShadowPath;
+use keep::ShadowPath;
 
 #[derive(Debug, Clone, PartialEq, Eq, Parser)]
 #[command(name = "keep", arg_required_else_help = false)]

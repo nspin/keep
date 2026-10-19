@@ -1,4 +1,3 @@
-mod cli;
 mod database;
 mod paths;
 mod shadow;
@@ -7,7 +6,6 @@ mod snapshot;
 mod substance;
 
 pub use crate::{
-    cli::cli_main,
     database::{
         Database, TraversalCallbacks, Traverser, Visit, VisitLink, VisitShadow, VisitTree,
         VisitTreeDecision,
