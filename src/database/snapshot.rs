@@ -56,7 +56,7 @@ impl Database {
         subject: &Path,
     ) -> Result<()> {
         self.unique_shadows(tree, |path, shadow| {
-            let src = subject.join(path.to_string());
+            let src = path.append_to(subject);
             eprint!(".");
             substance.store(shadow.content_hash(), &src)?;
             Ok(())

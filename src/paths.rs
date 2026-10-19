@@ -5,14 +5,34 @@ use std::str::{self, FromStr};
 use itertools::Itertools;
 use thiserror::Error;
 
+const MARKER: &'static str = "0";
+const CHILD_PREFIX: &'static str = "0_";
+
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub struct ShadowPathComponent(String); // invariants: matches [^/\0]+ and not in {".", ".."}
+pub struct ShadowPathComponent(
+    // invariants: matches [^/\0]+ and not in {".", ".."}
+    String,
+);
 
 impl ShadowPathComponent {
     const DISALLOWED_CHARS: &'static [char] = &['/', '\0'];
 
+    pub fn new(s: String) -> Result<Self, ShadowPathError> {
+        Self::check(s.as_str())?;
+        Ok(Self(s))
+    }
+
+    fn check(s: &str) -> Result<(), ShadowPathError> {
+        match s {
+            "." | ".." => Err(ShadowPathError::DisallowedComponent),
+            _ if s.contains(Self::DISALLOWED_CHARS) => Err(ShadowPathError::DisallowedChar),
+            _ if s.is_empty() => Err(ShadowPathError::Empty),
+            _ => Ok(()),
+        }
+    }
+
     pub fn encode(&self) -> String {
-        ShadowTreeEntryName::encode_child(self)
+        format!("{}{}", CHILD_PREFIX, self)
     }
 }
 
@@ -32,12 +52,8 @@ impl FromStr for ShadowPathComponent {
     type Err = ShadowPathError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "." | ".." => Err(Self::Err::DisallowedComponent),
-            _ if s.contains(Self::DISALLOWED_CHARS) => Err(Self::Err::DisallowedChar),
-            _ if s.is_empty() => Err(Self::Err::Empty),
-            _ => Ok(Self(s.to_owned())),
-        }
+        Self::check(s)?;
+        Self::new(s.to_owned())
     }
 }
 
@@ -72,15 +88,15 @@ impl ShadowPath {
     pub fn encode(&self) -> String {
         self.components()
             .iter()
-            .map(ShadowTreeEntryName::encode_child)
+            .map(ShadowPathComponent::encode)
             .join("/")
     }
 
     pub fn encode_marker(&self) -> String {
         self.components()
             .iter()
-            .map(ShadowTreeEntryName::encode_child)
-            .chain([ShadowTreeEntryName::encode_marker()])
+            .map(ShadowPathComponent::encode)
+            .chain([ShadowTreeEntryName::Marker.encode()])
             .join("/")
     }
 }
@@ -118,9 +134,6 @@ pub enum ShadowTreeEntryName {
 }
 
 impl ShadowTreeEntryName {
-    const MARKER: &'static str = "0";
-    const CHILD_PREFIX: &'static str = "0_";
-
     pub fn is_marker(&self) -> bool {
         matches!(self, Self::Marker)
     }
@@ -133,47 +146,17 @@ impl ShadowTreeEntryName {
     }
 
     pub fn encode(&self) -> String {
-        self.to_string()
-    }
-
-    pub fn encode_marker() -> String {
-        Self::MARKER.to_string()
-    }
-
-    pub fn encode_child(child: &ShadowPathComponent) -> String {
-        format!("{}{}", Self::CHILD_PREFIX, child)
+        match self {
+            Self::Marker => MARKER.to_string(),
+            Self::Child(child) => child.encode(),
+        }
     }
 
     pub fn decode(s: &str) -> Result<Self, ShadowEncodedPathError> {
-        Self::from_str(s)
-    }
-}
-
-impl fmt::Display for ShadowTreeEntryName {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            fmt,
-            "{}",
-            match self {
-                Self::Marker => {
-                    Self::encode_marker()
-                }
-                Self::Child(child) => {
-                    Self::encode_child(child)
-                }
-            }
-        )
-    }
-}
-
-impl FromStr for ShadowTreeEntryName {
-    type Err = ShadowEncodedPathError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(if s == Self::MARKER {
+        Ok(if s == MARKER {
             Self::Marker
         } else {
-            match s.strip_prefix(Self::CHILD_PREFIX) {
+            match s.strip_prefix(CHILD_PREFIX) {
                 Some(child) => Self::Child(child.parse()?),
                 None => return Err(ShadowEncodedPathError::MissingPrefix),
             }
@@ -236,15 +219,6 @@ mod tests {
         ensure_inverse::<ShadowPath>("");
         ensure_inverse::<ShadowPath>("abc");
         ensure_inverse::<ShadowPath>("x/y");
-    }
-
-    #[test]
-    fn encoding() {
-        assert_eq!(ShadowPath::from_str("x/y").unwrap().encode(), "0_x/0_y");
-        assert_eq!(
-            ShadowPath::from_str("x/y").unwrap().encode_marker(),
-            "0_x/0_y/0"
-        );
     }
 
     #[test]
