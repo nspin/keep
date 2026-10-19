@@ -55,8 +55,6 @@ impl Args {
                 log::info!("planted: {:06o},{}", u32::from(mode), tree);
                 log::info!("storing snapshot");
                 db.store_snapshot(&substance, tree, subject)?;
-                // log::info!("adding snapshot to index at {}", relative_path);
-                // db.add_to_index(mode, tree, relative_path)?;
                 let parent = db.repository().head()?.peel_to_commit()?;
                 let big_tree = parent.tree_id();
                 log::info!(
