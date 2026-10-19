@@ -9,9 +9,9 @@ use keep::ShadowPath;
 #[derive(Debug, Clone, PartialEq, Eq, Parser)]
 #[command(name = "keep", arg_required_else_help = false)]
 pub struct Args {
-    #[arg(long, env = "GIT_DIR")]
+    #[arg(long, env = "KEEP_GIT_DIR")]
     pub git_dir: Option<PathBuf>,
-    #[arg(long, env = "SUBSTANCE_DIR")]
+    #[arg(long, env = "KEEP_SUBSTANCE_DIR")]
     pub substance_dir: Option<PathBuf>,
     #[arg(
         short = 'v',
