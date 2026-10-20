@@ -3,7 +3,7 @@ use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use digest_io::IoWrapper;
 use sha2::{Digest, Sha256};
 
@@ -130,7 +130,7 @@ pub fn path_size(path: &Path) -> Result<u64> {
 
 fn check_path_size(path: &Path, expected: u64) -> Result<()> {
     let observerd = path_size(path)?;
-    assert_eq!(expected, observerd);
+    ensure!(expected == observerd);
     Ok(())
 }
 
@@ -143,6 +143,6 @@ pub fn path_sha256sum(path: &Path) -> Result<ContentSha256> {
 
 fn check_path_sha256sum(path: &Path, expected: &ContentSha256) -> Result<()> {
     let observerd = path_sha256sum(path)?;
-    assert_eq!(expected, &observerd);
+    ensure!(expected == &observerd);
     Ok(())
 }
