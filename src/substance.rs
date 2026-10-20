@@ -17,8 +17,12 @@ pub trait Substance {
         self.blob_path(blob).is_file()
     }
 
-    fn check_blob(&self, blob: &ContentSha256) -> Result<()> {
-        check_sha256sum(blob, &self.blob_path(blob))
+    fn check_blob_size(&self, blob: &ContentSha256, blob_size: u64) -> Result<()> {
+        check_path_size(&self.blob_path(blob), blob_size)
+    }
+
+    fn check_blob_sha256sum(&self, blob: &ContentSha256) -> Result<()> {
+        check_path_sha256sum(&self.blob_path(blob), blob)
     }
 }
 
@@ -100,7 +104,7 @@ impl Substance for FilesystemSubstance {
         // NOTE
         // Could use digest_io::HashReader to hash and copy at the same time, but would miss out on
         // copy_file_range specialization.
-        check_sha256sum(blob, &partial_path)?;
+        check_path_sha256sum(&partial_path, blob)?;
 
         let blob_parent = self.blob_parent(blob);
         ensure_dir_exists(&blob_parent)?;
@@ -119,15 +123,26 @@ fn ensure_dir_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn sha256sum(path: &Path) -> Result<ContentSha256> {
+pub fn path_size(path: &Path) -> Result<u64> {
+    let meta = fs::metadata(path)?;
+    Ok(meta.len())
+}
+
+fn check_path_size(path: &Path, expected: u64) -> Result<()> {
+    let observerd = path_size(path)?;
+    assert_eq!(expected, observerd);
+    Ok(())
+}
+
+pub fn path_sha256sum(path: &Path) -> Result<ContentSha256> {
     let mut file = OpenOptions::new().read(true).open(path)?;
     let mut hasher = IoWrapper(Sha256::new());
     io::copy(&mut file, &mut hasher)?;
     Ok(ContentSha256::new(hasher.0.finalize().into()))
 }
 
-fn check_sha256sum(expected: &ContentSha256, path: &Path) -> Result<()> {
-    let observerd = sha256sum(path)?;
+fn check_path_sha256sum(path: &Path, expected: &ContentSha256) -> Result<()> {
+    let observerd = path_sha256sum(path)?;
     assert_eq!(expected, &observerd);
     Ok(())
 }

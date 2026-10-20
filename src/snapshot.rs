@@ -11,7 +11,7 @@ use anyhow::{Context, Result, ensure};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 
-use crate::{Shadow, ShadowPath, ShadowPathComponent, sha256sum};
+use crate::{Shadow, ShadowPath, ShadowPathComponent, path_sha256sum};
 
 #[derive(Clone, Debug)]
 pub enum Snapshot<T = Shadow> {
@@ -70,7 +70,7 @@ impl Snapshot {
             let file_path = path.append_to(subject);
             meta.check(&file_path)?;
             eprint!(".");
-            let content_hash = sha256sum(&file_path)?;
+            let content_hash = path_sha256sum(&file_path)?;
             Ok(Shadow::new(content_hash, Some(meta.size)))
         })
     }
