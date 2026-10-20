@@ -4,6 +4,7 @@ mod shadow;
 mod shallow_diff;
 mod snapshot;
 mod substance;
+mod utils;
 
 pub use crate::{
     database::{
@@ -15,4 +16,5 @@ pub use crate::{
     shallow_diff::{ShallowDifference, ShallowDifferenceSide, shallow_diff},
     snapshot::Snapshot,
     substance::{FilesystemSubstance, Substance, path_sha256sum},
+    utils::with_report_progress,
 };

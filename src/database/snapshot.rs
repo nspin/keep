@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use git2::{FileMode, Oid};
 
-use crate::{Database, ShadowTreeEntryName, Snapshot, Substance};
+use crate::{Database, ShadowTreeEntryName, Snapshot, Substance, with_report_progress};
 
 impl Database {
     pub fn plant_snapshot(&self, value: &Snapshot) -> Result<(FileMode, Oid)> {
@@ -55,12 +55,18 @@ impl Database {
         tree: Oid,
         subject: &Path,
     ) -> Result<()> {
-        self.unique_shadows(tree, |path, shadow| {
-            let src = path.append_to(subject);
-            eprint!(".");
-            substance.store(shadow.content_hash(), &src)?;
-            Ok(())
-        })?;
+        with_report_progress(
+            1000,
+            |i| log::info!("stored {i} blobs"),
+            |p| {
+                self.unique_shadows(tree, |path, shadow| {
+                    let src = path.append_to(subject);
+                    substance.store(shadow.content_hash(), &src)?;
+                    (p)();
+                    Ok(())
+                })
+            },
+        )?;
         Ok(())
     }
 }

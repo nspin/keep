@@ -4,11 +4,10 @@ use anyhow::Result;
 use git2::{FileMode, Repository};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use keep::{
-    Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, Substance, path_sha256sum,
-};
+use keep::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, path_sha256sum};
 
 mod args;
+mod commands;
 
 use args::{Args, Command};
 
@@ -116,38 +115,10 @@ impl Args {
                 })?;
             }
             Command::CheckBlobs { tree, deep } => {
-                let db = self.database()?;
-                let substance = self.substance()?;
+                let mut db = self.database()?;
+                let mut substance = self.substance()?;
                 let tree = db.resolve_treeish(tree)?;
-                let mut i = 0;
-                db.unique_shadows(tree, |path, blob| {
-                    if i % 10000 == 0 {
-                        eprintln!("checked {i} blobs");
-                    }
-                    if blob.content_size().is_none() {
-                        eprintln!("missing size: {} {}", blob.content_hash(), path);
-                    }
-                    if !substance.have_blob(blob.content_hash()) {
-                        eprintln!("missing blob: {} {}", blob.content_hash(), path);
-                    } else {
-                        if let Some(size) = blob.content_size()
-                            && !substance.check_blob_size(blob.content_hash(), size).is_ok()
-                        {
-                            eprintln!(
-                                "blob size mismatch: {} {} (expected: {size})",
-                                blob.content_hash(),
-                                path
-                            );
-                        } else if *deep
-                            && !substance.check_blob_sha256sum(blob.content_hash()).is_ok()
-                        {
-                            eprintln!("invalid blob: {} {}", blob.content_hash(), path);
-                        }
-                    }
-                    i += 1;
-                    Ok(())
-                })?;
-                eprintln!("checked {i} blobs");
+                commands::check_blobs::run(&mut db, &mut substance, tree, *deep)?;
             }
             Command::Sha256Sum { path } => {
                 let blob = path_sha256sum(path)?;

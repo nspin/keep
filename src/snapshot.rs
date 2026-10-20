@@ -11,7 +11,7 @@ use anyhow::{Context, Result, ensure};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 
-use crate::{Shadow, ShadowPath, ShadowPathComponent, path_sha256sum};
+use crate::{Shadow, ShadowPath, ShadowPathComponent, path_sha256sum, with_report_progress};
 
 #[derive(Clone, Debug)]
 pub enum Snapshot<T = Shadow> {
@@ -66,13 +66,20 @@ impl<T> Snapshot<T> {
 
 impl Snapshot {
     pub fn take(subject: &Path) -> Result<Snapshot> {
-        parse_find_output(run_find(subject)?)?.traverse_with_path(&mut |path, meta| {
-            let file_path = path.append_to(subject);
-            meta.check(&file_path)?;
-            eprint!(".");
-            let content_hash = path_sha256sum(&file_path)?;
-            Ok(Shadow::new(content_hash, Some(meta.size)))
-        })
+        let meta_snapshot = parse_find_output(run_find(subject)?)?;
+        with_report_progress(
+            1000,
+            |i| log::info!("hashed {i} blobs"),
+            |p| {
+                meta_snapshot.traverse_with_path(&mut |path, meta| {
+                    let file_path = path.append_to(subject);
+                    meta.check(&file_path)?;
+                    let content_hash = path_sha256sum(&file_path)?;
+                    (p)();
+                    Ok(Shadow::new(content_hash, Some(meta.size)))
+                })
+            },
+        )
     }
 }
 
