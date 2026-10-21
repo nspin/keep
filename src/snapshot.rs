@@ -62,18 +62,32 @@ impl<T> Snapshot<T> {
             },
         })
     }
+
+    fn count_files(&self) -> u64 {
+        match self {
+            Snapshot::File { .. } => 1,
+            Snapshot::Link { .. } => 0,
+            Snapshot::Tree { entries } => entries.values().map(|entry| entry.count_files()).sum(),
+        }
+    }
 }
 
 impl Snapshot {
     pub fn take(subject: &Path) -> Result<Snapshot> {
         let meta_snapshot = parse_find_output(run_find(subject)?)?;
+        let num_files = meta_snapshot.count_files();
         with_report_progress(
             1000,
-            |i| log::info!("hashed {i} blobs"),
+            |i| log::info!("hashed {i}/{num_files} files"),
             |p| {
                 meta_snapshot.traverse_with_path(&mut |path, meta| {
                     let file_path = path.append_to(subject);
-                    meta.check(&file_path)?;
+                    let observed_meta = Meta::stat(&file_path)?;
+                    ensure!(
+                        meta == observed_meta,
+                        "{} changed while taking snapshot: {meta:?} != {observed_meta:?}",
+                        file_path.display(),
+                    );
                     let content_hash = path_sha256sum(&file_path)?;
                     (p)();
                     Ok(Shadow::new(content_hash, meta.size))
@@ -130,18 +144,6 @@ impl Meta {
             dev: metadata.dev(),
         })
     }
-
-    fn check(&self, path: &Path) -> Result<()> {
-        let actual = Self::stat(path)?;
-        ensure!(
-            self == &actual,
-            "{} changed while taking snapshot: {:?} != {:?}",
-            path.display(),
-            self,
-            actual
-        );
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
@@ -157,7 +159,7 @@ impl RawFindLine {
             static ref RE: Regex = Regex::new(
                 r"(?x)
                 \A
-                (?P<type>[dflcbsp])                             # %y
+                  (?P<type>[dflcbsp])                           # %y
                 \ 0(?P<perms>[0-7]*)                            # %#m
                 \ (?P<size>[0-9]+)                              # %s
                 \ (?P<ctime>[0-9]+)\.(?P<ctime_ns>[0-9]{9})0    # %C@
@@ -173,34 +175,35 @@ impl RawFindLine {
             )
             .unwrap();
         }
+
+        fn parse_captures(caps: &Captures) -> RawFindLine {
+            RawFindLine {
+                meta: Meta {
+                    ty: caps["type"].chars().next().unwrap(),
+                    perms: u16::from_str_radix(&caps["perms"], 8).unwrap(),
+                    size: caps["size"].parse().unwrap(),
+                    ctime: caps["ctime"].parse().unwrap(),
+                    ctime_ns: caps["ctime_ns"].parse().unwrap(),
+                    mtime: caps["mtime"].parse().unwrap(),
+                    mtime_ns: caps["mtime_ns"].parse().unwrap(),
+                    inode: caps["inode"].parse().unwrap(),
+                    uid: caps["uid"].parse().unwrap(),
+                    gid: caps["gid"].parse().unwrap(),
+                    dev: caps["dev"].parse().unwrap(),
+                },
+                path: caps["path"].to_string(),
+                target: caps["target"].to_string(),
+            }
+        }
+
         let mut lines = vec![];
         let mut rest = s;
         while !rest.is_empty() {
             let caps = RE.captures(rest).unwrap();
-            lines.push(Self::parse_captures(&caps));
+            lines.push(parse_captures(&caps));
             rest = &rest[caps.get(0).unwrap().end()..];
         }
         lines
-    }
-
-    fn parse_captures(caps: &Captures) -> Self {
-        Self {
-            meta: Meta {
-                ty: caps["type"].chars().nth(0).unwrap(),
-                perms: u16::from_str_radix(&caps["perms"], 8).unwrap(),
-                size: caps["size"].parse().unwrap(),
-                ctime: caps["ctime"].parse().unwrap(),
-                ctime_ns: caps["ctime_ns"].parse().unwrap(),
-                mtime: caps["mtime"].parse().unwrap(),
-                mtime_ns: caps["mtime_ns"].parse().unwrap(),
-                inode: caps["inode"].parse().unwrap(),
-                uid: caps["uid"].parse().unwrap(),
-                gid: caps["gid"].parse().unwrap(),
-                dev: caps["dev"].parse().unwrap(),
-            },
-            path: caps["path"].to_string(),
-            target: caps["target"].to_string(),
-        }
     }
 }
 

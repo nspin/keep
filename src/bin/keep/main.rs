@@ -4,7 +4,7 @@ use anyhow::Result;
 use git2::{FileMode, Repository};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use keep::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot, path_sha256sum};
+use keep::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot};
 
 mod args;
 mod commands;
@@ -68,62 +68,6 @@ impl Args {
                 log::info!("new commit is {}. merging --ff-only into HEAD", commit);
                 db.safe_merge(commit)?;
             }
-            Command::Mount {
-                mountpoint,
-                tree,
-                uid,
-                gid,
-            } => {
-                let db = self.database()?;
-                let substance = self.substance()?;
-                let tree = db.resolve_treeish(tree)?;
-                db.mount(tree, mountpoint, substance, *uid, *gid)?;
-            }
-            Command::Diff { tree_a, tree_b } => {
-                let (tree_a, tree_b) = match (tree_a.as_deref(), tree_b.as_deref()) {
-                    (None, None) => ("HEAD^", "HEAD"),
-                    (Some(tree_a), None) => ("HEAD", tree_a),
-                    (Some(tree_a), Some(tree_b)) => (tree_a, tree_b),
-                    _ => panic!(),
-                };
-                let db = self.database()?;
-                let tree_a = db.resolve_treeish(tree_a)?;
-                let tree_b = db.resolve_treeish(tree_b)?;
-                let mut stdout = StandardStream::stdout(ColorChoice::Always);
-                db.shallow_diff(tree_a, tree_b, |difference| {
-                    let color = match difference.side() {
-                        ShallowDifferenceSide::A => Color::Red,
-                        ShallowDifferenceSide::B => Color::Green,
-                    };
-                    stdout.set_color(ColorSpec::new().set_fg(Some(color)))?;
-                    writeln!(&mut stdout, "{}", difference)?;
-                    Ok(())
-                })?;
-                stdout.reset()?;
-            }
-            Command::Check { tree } => {
-                let db = self.database()?;
-                let tree = db.resolve_treeish(tree)?;
-                db.check(tree)?;
-            }
-            Command::UniqueBlobs { tree } => {
-                let db = self.database()?;
-                let tree = db.resolve_treeish(tree)?;
-                db.unique_shadows(tree, |path, blob| {
-                    println!("{} {}", blob.content_hash(), path);
-                    Ok(())
-                })?;
-            }
-            Command::CheckBlobs { tree, deep } => {
-                let mut db = self.database()?;
-                let mut substance = self.substance()?;
-                let tree = db.resolve_treeish(tree)?;
-                commands::check_blobs::run(&mut db, &mut substance, tree, *deep)?;
-            }
-            Command::Sha256Sum { path } => {
-                let blob = path_sha256sum(path)?;
-                println!("{} *{}", blob, path.display());
-            }
             Command::TakeSnapshot { subject } => {
                 let db = self.database()?;
                 let snapshot = Snapshot::take(subject)?;
@@ -159,6 +103,58 @@ impl Args {
                 let big_tree = db.resolve_treeish(big_tree)?;
                 let new_tree = db.remove(big_tree, relative_path)?;
                 println!("{}", new_tree)
+            }
+            Command::Mount {
+                mountpoint,
+                tree,
+                uid,
+                gid,
+            } => {
+                let db = self.database()?;
+                let substance = self.substance()?;
+                let tree = db.resolve_treeish(tree)?;
+                db.mount(tree, mountpoint, substance, *uid, *gid)?;
+            }
+            Command::Check { tree } => {
+                let db = self.database()?;
+                let tree = db.resolve_treeish(tree)?;
+                db.check(tree)?;
+            }
+            Command::CheckContent { tree, deep } => {
+                let mut db = self.database()?;
+                let mut substance = self.substance()?;
+                let tree = db.resolve_treeish(tree)?;
+                commands::check_content::run(&mut db, &mut substance, tree, *deep)?;
+            }
+            Command::UniqueShadows { tree } => {
+                let db = self.database()?;
+                let tree = db.resolve_treeish(tree)?;
+                db.unique_shadows(tree, |path, shadow| {
+                    println!("{} {}", shadow.content_hash(), path);
+                    Ok(())
+                })?;
+            }
+            Command::Diff { tree_a, tree_b } => {
+                let (tree_a, tree_b) = match (tree_a.as_deref(), tree_b.as_deref()) {
+                    (None, None) => ("HEAD^", "HEAD"),
+                    (Some(tree_a), None) => ("HEAD", tree_a),
+                    (Some(tree_a), Some(tree_b)) => (tree_a, tree_b),
+                    _ => panic!(),
+                };
+                let db = self.database()?;
+                let tree_a = db.resolve_treeish(tree_a)?;
+                let tree_b = db.resolve_treeish(tree_b)?;
+                let mut stdout = StandardStream::stdout(ColorChoice::Always);
+                db.shallow_diff(tree_a, tree_b, |difference| {
+                    let color = match difference.side() {
+                        ShallowDifferenceSide::A => Color::Red,
+                        ShallowDifferenceSide::B => Color::Green,
+                    };
+                    stdout.set_color(ColorSpec::new().set_fg(Some(color)))?;
+                    writeln!(&mut stdout, "{}", difference)?;
+                    Ok(())
+                })?;
+                stdout.reset()?;
             }
         }
         Ok(())

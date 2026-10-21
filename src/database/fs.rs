@@ -217,7 +217,7 @@ impl<T: Substance> DatabaseFilesystemState<T> {
         })
     }
 
-    fn open_blob(&mut self, ino: INodeNo) -> Result<()> {
+    fn open_content(&mut self, ino: INodeNo) -> Result<()> {
         if let Some(shared) = self.file_handles.get_mut(&ino) {
             shared.increment();
             return Ok(());
@@ -228,13 +228,13 @@ impl<T: Substance> DatabaseFilesystemState<T> {
         };
         let blob = self.repository.find_blob(*oid)?;
         let shadow = Shadow::from_bytes(blob.content())?;
-        let blob_path = self.substance.blob_path(shadow.content_hash());
-        let file = OpenOptions::new().read(true).open(blob_path)?;
+        let content_path = self.substance.content_path(&shadow);
+        let file = OpenOptions::new().read(true).open(content_path)?;
         self.file_handles.insert(ino, SharedFile::new(file));
         Ok(())
     }
 
-    fn close_blob(&mut self, ino: INodeNo) -> Result<()> {
+    fn close_content(&mut self, ino: INodeNo) -> Result<()> {
         if !self.file_handles.get_mut(&ino).unwrap().decrement() {
             self.file_handles.remove(&ino);
         }
@@ -415,12 +415,12 @@ impl<T: Substance> DatabaseFilesystemState<T> {
     }
 
     fn open(&mut self, ino: INodeNo, reply: ReplyOpen) {
-        fry!(reply, self.open_blob(ino));
+        fry!(reply, self.open_content(ino));
         reply.opened(FileHandle(0), FopenFlags::empty())
     }
 
     fn release(&mut self, ino: INodeNo, reply: ReplyEmpty) {
-        fry!(reply, self.close_blob(ino));
+        fry!(reply, self.close_content(ino));
         reply.ok()
     }
 

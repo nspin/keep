@@ -57,11 +57,10 @@ impl Database {
     ) -> Result<()> {
         with_report_progress(
             1000,
-            |i| log::info!("stored {i} blobs"),
+            |i| log::info!("stored {i} files"),
             |p| {
                 self.unique_shadows(tree, |path, shadow| {
-                    let src = path.append_to(subject);
-                    substance.store(shadow.content_hash(), &src)?;
+                    substance.store_content(shadow, &path.append_to(subject))?;
                     (p)();
                     Ok(())
                 })

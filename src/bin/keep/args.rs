@@ -9,18 +9,22 @@ use keep::ShadowPath;
 #[derive(Debug, Clone, PartialEq, Eq, Parser)]
 #[command(name = "keep", arg_required_else_help = false)]
 pub struct Args {
-    #[arg(long, env = "KEEP_GIT_DIR")]
+    #[arg(long, short = 'd', env = "KEEP_GIT_DIR")]
     pub git_dir: Option<PathBuf>,
-    #[arg(long, env = "KEEP_SUBSTANCE_DIR")]
+    #[arg(long, short = 's', env = "KEEP_SUBSTANCE_DIR")]
     pub substance_dir: Option<PathBuf>,
+    #[arg(
+        long = "ro",
+        short = 'r',
+        help = "Constrains execution to read-only operations."
+    )]
+    pub read_only: bool,
     #[arg(
         short = 'v',
         action = ArgAction::Count,
         help = "Sets the verbosity level (supply more than once for increased verbosity)"
     )]
     pub verbosity: u8,
-    #[arg(long = "ro", help = "Constrains execution to read-only operations.")]
-    pub read_only: bool,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -32,38 +36,6 @@ pub enum Command {
         relative_path: ShadowPath,
         #[arg(long, short = 'f', help = "Replace RELATIVE_PATH if it exists.")]
         force: bool,
-    },
-    Mount {
-        mountpoint: PathBuf,
-        #[arg(default_value = "HEAD")]
-        tree: String,
-        #[arg(long, short = 'u', default_value = "0")]
-        uid: u32,
-        #[arg(long, short = 'g', default_value = "0")]
-        gid: u32,
-    },
-    #[command(about = "Default: HEAD _ or HEAD^ HEAD.")]
-    Diff {
-        tree_a: Option<String>,
-        tree_b: Option<String>,
-    },
-    Check {
-        #[arg(default_value = "HEAD")]
-        tree: String,
-    },
-    UniqueBlobs {
-        #[arg(default_value = "HEAD")]
-        tree: String,
-    },
-    CheckBlobs {
-        #[arg(default_value = "HEAD")]
-        tree: String,
-        #[arg(long)]
-        deep: bool,
-    },
-    #[command(name = "sha256sum")]
-    Sha256Sum {
-        path: PathBuf,
     },
     TakeSnapshot {
         subject: PathBuf,
@@ -86,6 +58,34 @@ pub enum Command {
         #[arg(default_value = "HEAD")]
         big_tree: String,
     },
+    Mount {
+        mountpoint: PathBuf,
+        #[arg(default_value = "HEAD")]
+        tree: String,
+        #[arg(long, short = 'u', default_value = "0")]
+        uid: u32,
+        #[arg(long, short = 'g', default_value = "0")]
+        gid: u32,
+    },
+    Check {
+        #[arg(default_value = "HEAD")]
+        tree: String,
+    },
+    CheckContent {
+        #[arg(default_value = "HEAD")]
+        tree: String,
+        #[arg(long)]
+        deep: bool,
+    },
+    UniqueShadows {
+        #[arg(default_value = "HEAD")]
+        tree: String,
+    },
+    #[command(about = "Default: HEAD _ or HEAD^ HEAD.")]
+    Diff {
+        tree_a: Option<String>,
+        tree_b: Option<String>,
+    },
 }
 
 impl Args {
@@ -105,16 +105,15 @@ impl Args {
     fn finish(self) -> Result<Self> {
         let (needs_git_dir, needs_substance_dir) = match self.command {
             Command::Snapshot { .. }
+            | Command::StoreSnapshot { .. }
             | Command::Mount { .. }
-            | Command::CheckBlobs { .. }
-            | Command::StoreSnapshot { .. } => (true, true),
-            Command::Diff { .. }
-            | Command::Check { .. }
-            | Command::UniqueBlobs { .. }
-            | Command::TakeSnapshot { .. }
+            | Command::CheckContent { .. } => (true, true),
+            Command::TakeSnapshot { .. }
             | Command::Append { .. }
-            | Command::Remove { .. } => (true, false),
-            Command::Sha256Sum { .. } => (false, false),
+            | Command::Remove { .. }
+            | Command::Check { .. }
+            | Command::UniqueShadows { .. }
+            | Command::Diff { .. } => (true, false),
         };
         if needs_git_dir && self.git_dir.is_none() {
             return Err(anyhow!("missing '--git-dir'"));
@@ -122,7 +121,6 @@ impl Args {
         if needs_substance_dir && self.substance_dir.is_none() {
             return Err(anyhow!("missing '--substance-dir'"));
         }
-
         Ok(self)
     }
 }

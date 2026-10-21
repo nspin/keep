@@ -7,22 +7,22 @@ use anyhow::{Result, ensure};
 use digest_io::IoWrapper;
 use sha2::{Digest, Sha256};
 
-use crate::ContentSha256;
+use crate::{ContentSha256, Shadow};
 
 pub trait Substance {
-    fn blob_path(&self, blob: &ContentSha256) -> PathBuf;
-    fn store(&self, blob: &ContentSha256, src: &Path) -> Result<()>;
+    fn content_path(&self, shadow: &Shadow) -> PathBuf;
+    fn store_content(&self, shadow: &Shadow, src: &Path) -> Result<()>;
 
-    fn have_blob(&self, blob: &ContentSha256) -> bool {
-        self.blob_path(blob).is_file()
+    fn have_content(&self, shadow: &Shadow) -> bool {
+        self.content_path(shadow).is_file()
     }
 
-    fn check_blob_size(&self, blob: &ContentSha256, blob_size: u64) -> Result<()> {
-        check_path_size(&self.blob_path(blob), blob_size)
+    fn check_content_size(&self, shadow: &Shadow) -> Result<()> {
+        check_path_size(&self.content_path(shadow), shadow.content_size())
     }
 
-    fn check_blob_sha256sum(&self, blob: &ContentSha256) -> Result<()> {
-        check_path_sha256sum(&self.blob_path(blob), blob)
+    fn check_content_hash(&self, shadow: &Shadow) -> Result<()> {
+        check_path_sha256sum(&self.content_path(shadow), shadow.content_hash())
     }
 }
 
@@ -39,7 +39,7 @@ impl FilesystemSubstance {
         }
     }
 
-    fn blob_dir(&self) -> PathBuf {
+    fn content_dir(&self) -> PathBuf {
         self.path.join("blobs")
     }
 
@@ -47,35 +47,35 @@ impl FilesystemSubstance {
         self.path.join("partial")
     }
 
-    fn blob_relative_path(blob: &ContentSha256) -> (String, String) {
-        let hex = blob.to_hex();
+    fn content_relative_path(shadow: &Shadow) -> (String, String) {
+        let hex = shadow.content_hash().to_hex();
         let (parent, child) = hex.split_at(Self::SPLIT);
         (parent.to_owned(), child.to_owned())
     }
 
-    fn blob_parent(&self, blob: &ContentSha256) -> PathBuf {
-        let (parent, _child) = Self::blob_relative_path(blob);
-        self.blob_dir().join(&parent)
+    fn content_parent(&self, shadow: &Shadow) -> PathBuf {
+        let (parent, _child) = Self::content_relative_path(shadow);
+        self.content_dir().join(&parent)
     }
 
-    fn partial_path(&self, blob: &ContentSha256) -> PathBuf {
-        self.partial_dir().join(blob.to_hex())
+    fn partial_path(&self, shadow: &Shadow) -> PathBuf {
+        self.partial_dir().join(shadow.content_hash().to_hex())
     }
 }
 
 impl Substance for FilesystemSubstance {
-    fn blob_path(&self, blob: &ContentSha256) -> PathBuf {
-        let (parent, child) = Self::blob_relative_path(blob);
-        self.blob_dir().join(&parent).join(&child)
+    fn content_path(&self, shadow: &Shadow) -> PathBuf {
+        let (parent, child) = Self::content_relative_path(shadow);
+        self.content_dir().join(&parent).join(&child)
     }
 
-    fn store(&self, blob: &ContentSha256, src: &Path) -> Result<()> {
-        if self.have_blob(blob) {
+    fn store_content(&self, shadow: &Shadow, src: &Path) -> Result<()> {
+        if self.have_content(shadow) {
             return Ok(());
         }
 
-        let blob_path = self.blob_path(blob);
-        let partial_path = self.partial_path(blob);
+        let content_path = self.content_path(shadow);
+        let partial_path = self.partial_path(shadow);
 
         assert!(src.is_file());
         let mut src_file = OpenOptions::new().read(true).open(src)?;
@@ -95,12 +95,12 @@ impl Substance for FilesystemSubstance {
         // NOTE
         // Could use digest_io::HashReader to hash and copy at the same time, but would miss out on
         // copy_file_range specialization.
-        check_path_sha256sum(&partial_path, blob)?;
+        check_path_sha256sum(&partial_path, shadow.content_hash())?;
 
-        let blob_parent = self.blob_parent(blob);
-        ensure_dir_exists(&blob_parent)?;
+        let content_parent = self.content_parent(shadow);
+        ensure_dir_exists(&content_parent)?;
 
-        fs::rename(&partial_path, &blob_path)?;
+        fs::rename(&partial_path, &content_path)?;
         Ok(())
     }
 }
@@ -114,17 +114,6 @@ fn ensure_dir_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn path_size(path: &Path) -> Result<u64> {
-    let meta = fs::metadata(path)?;
-    Ok(meta.len())
-}
-
-fn check_path_size(path: &Path, expected: u64) -> Result<()> {
-    let observerd = path_size(path)?;
-    ensure!(expected == observerd);
-    Ok(())
-}
-
 pub fn path_sha256sum(path: &Path) -> Result<ContentSha256> {
     let mut file = OpenOptions::new().read(true).open(path)?;
     let mut hasher = IoWrapper(Sha256::new());
@@ -135,5 +124,16 @@ pub fn path_sha256sum(path: &Path) -> Result<ContentSha256> {
 fn check_path_sha256sum(path: &Path, expected: &ContentSha256) -> Result<()> {
     let observerd = path_sha256sum(path)?;
     ensure!(expected == &observerd);
+    Ok(())
+}
+
+pub fn path_size(path: &Path) -> Result<u64> {
+    let meta = fs::metadata(path)?;
+    Ok(meta.len())
+}
+
+fn check_path_size(path: &Path, expected: u64) -> Result<()> {
+    let observerd = path_size(path)?;
+    ensure!(expected == observerd);
     Ok(())
 }

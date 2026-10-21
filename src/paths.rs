@@ -5,8 +5,8 @@ use std::str::{self, FromStr};
 use itertools::Itertools;
 use thiserror::Error;
 
-const MARKER: &'static str = "0";
-const CHILD_PREFIX: &'static str = "0_";
+const MARKER: &str = "0";
+const CHILD_PREFIX: &str = "0_";
 
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct ShadowPathComponent(

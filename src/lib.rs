@@ -15,6 +15,6 @@ pub use crate::{
     shadow::{ContentSha256, Shadow},
     shallow_diff::{ShallowDifference, ShallowDifferenceSide, shallow_diff},
     snapshot::Snapshot,
-    substance::{FilesystemSubstance, Substance, path_sha256sum},
+    substance::{FilesystemSubstance, Substance, path_sha256sum, path_size},
     utils::with_report_progress,
 };

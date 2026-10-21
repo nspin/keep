@@ -60,17 +60,15 @@ impl Database {
             .commit(None, &dummy_sig, &dummy_sig, message, tree, &[parent])?)
     }
 
-    pub fn safe_merge(&self, progress: Oid) -> Result<()> {
+    pub fn safe_merge(&self, new: Oid) -> Result<()> {
         let repo = self.repository();
         let mut head = repo.head().unwrap();
         let old = head.target().unwrap();
         assert!(
-            progress == old || repo.graph_descendant_of(progress, old)?,
-            "{} is not a fast-forward of {}",
-            progress,
-            old
+            new == old || repo.graph_descendant_of(new, old)?,
+            "{new} is not a fast-forward of {old}",
         );
-        head.set_target(progress, "keep: fast-forward")?; // fails if HEAD moved since it was read
+        head.set_target(new, "keep: fast-forward")?; // fails if HEAD moved since it was read
         Ok(())
     }
 }
