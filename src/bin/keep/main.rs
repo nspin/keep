@@ -37,7 +37,10 @@ impl Args {
             3 => log::LevelFilter::Debug,
             _ => log::LevelFilter::Trace,
         };
-        env_logger::builder().filter(None, level_filter).init();
+        env_logger::builder()
+            .filter(None, level_filter)
+            .format_target(false)
+            .init();
     }
 
     fn run(&self) -> Result<()> {
