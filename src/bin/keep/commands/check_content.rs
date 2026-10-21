@@ -3,19 +3,18 @@ use std::os::unix::fs::MetadataExt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Result, bail};
-use git2::Oid;
 
-use keep::{Database, Shadow, Substance};
+use keep::{Database, Entry, Shadow, Substance};
 
 pub(crate) fn run(
     db: &mut Database,
     substance: &mut impl Substance,
-    tree: Oid,
+    entry: &Entry,
     deep: bool,
 ) -> Result<()> {
     let mut ok = true;
     let mut total_b = 0;
-    db.unique_shadows(tree, |path, shadow| {
+    db.unique_shadows(entry, |path, shadow| {
         if !substance.have_content(shadow) {
             log::error!("missing content: {} {path}", shadow.content_hash());
             ok = false;
@@ -35,7 +34,7 @@ pub(crate) fn run(
     if deep {
         let v = {
             let mut v = vec![];
-            db.unique_shadows(tree, |path, shadow| {
+            db.unique_shadows(entry, |path, shadow| {
                 if substance.have_content(shadow) {
                     v.push((
                         content_ord(substance, shadow),

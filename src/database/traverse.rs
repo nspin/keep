@@ -4,7 +4,7 @@ use std::str;
 use anyhow::{Result, bail, ensure};
 use git2::{FileMode, ObjectType, Oid, Repository};
 
-use crate::{Database, Shadow, ShadowPath, ShadowTreeEntryName};
+use crate::{Database, Entry, Shadow, ShadowPath, ShadowTreeEntryName, decode_entry_filemode};
 
 impl Database {
     pub fn traverser<'a, T: TraversalCallbacks>(
@@ -18,7 +18,7 @@ impl Database {
         }
     }
 
-    pub fn check(&self, tree: Oid) -> Result<()> {
+    pub fn check(&self, entry: &Entry) -> Result<()> {
         struct CheckCallbacks;
         impl TraversalCallbacks for CheckCallbacks {
             fn on_shadow(&mut self, visit: &Visit<VisitShadow>) -> Result<()> {
@@ -31,12 +31,12 @@ impl Database {
             }
         }
         let mut callbacks = OnUnique::new(CheckCallbacks);
-        self.traverser(&mut callbacks).traverse(tree)
+        self.traverser(&mut callbacks).traverse(entry)
     }
 
     pub fn unique_shadows(
         &self,
-        tree: Oid,
+        entry: &Entry,
         callback: impl FnMut(&ShadowPath, &Shadow) -> Result<()>,
     ) -> Result<()> {
         struct UniqueShadowsCallbacks<T> {
@@ -52,7 +52,7 @@ impl Database {
             }
         }
         let mut callbacks = OnUnique::new(UniqueShadowsCallbacks { callback });
-        self.traverser(&mut callbacks).traverse(tree)
+        self.traverser(&mut callbacks).traverse(entry)
     }
 }
 
@@ -175,74 +175,68 @@ impl<'a, T: TraversalCallbacks> Traverser<'a, T> {
         Ok(())
     }
 
-    pub fn traverse(&mut self, tree: Oid) -> Result<()> {
-        self.traverse_from(&mut ShadowPath::new(), tree)
+    pub fn traverse(&mut self, entry: &Entry) -> Result<()> {
+        self.traverse_from(&mut ShadowPath::new(), entry)
     }
 
-    pub fn traverse_from(&mut self, path: &mut ShadowPath, tree: Oid) -> Result<()> {
-        if let VisitTreeDecision::Skip = self.callbacks.on_tree(&Visit {
-            repository: self.repository,
-            path,
-            oid: tree,
-            extra: VisitTree,
-        })? {
-            return Ok(());
-        }
-
-        let tree = self.repository.find_tree(tree)?;
-
-        let mut first = true;
-        for entry in tree.iter() {
-            let name = ShadowTreeEntryName::decode(entry.name().unwrap())?;
-            let mode = entry.filemode();
-            let kind = entry.kind().unwrap();
-            let oid = entry.id();
-
-            if first {
-                ensure!(name.is_marker());
-                ensure!(mode == FileMode::Blob.into());
-                ensure!(kind == ObjectType::Blob);
-                self.ensure_blob_is_empty(oid)?;
-                first = false;
-                continue;
-            }
-
-            let name = name.child().unwrap();
-            path.push(name.clone());
-            match kind {
-                ObjectType::Blob => {
-                    if mode == FileMode::Link.into() {
-                        self.callbacks.on_link(&Visit {
-                            repository: self.repository,
-                            path,
-                            oid,
-                            extra: VisitLink,
-                        })?;
-                    } else {
-                        let executable = if mode == FileMode::Blob.into() {
-                            true
-                        } else if mode == FileMode::BlobExecutable.into() {
-                            false
-                        } else {
-                            bail!("")
-                        };
-                        self.callbacks.on_shadow(&Visit {
-                            repository: self.repository,
-                            path,
-                            oid,
-                            extra: VisitShadow { executable },
-                        })?;
+    pub fn traverse_from(&mut self, path: &mut ShadowPath, entry: &Entry) -> Result<()> {
+        let obj = self.repository.find_object(entry.oid, None)?;
+        match obj.kind().unwrap() {
+            ObjectType::Blob => match entry.mode {
+                FileMode::Link => self.callbacks.on_link(&Visit {
+                    repository: self.repository,
+                    path,
+                    oid: entry.oid,
+                    extra: VisitLink,
+                })?,
+                FileMode::Blob | FileMode::BlobExecutable => {
+                    let executable = matches!(entry.mode, FileMode::BlobExecutable);
+                    self.callbacks.on_shadow(&Visit {
+                        repository: self.repository,
+                        path,
+                        oid: entry.oid,
+                        extra: VisitShadow { executable },
+                    })?;
+                }
+                _ => bail!(""),
+            },
+            ObjectType::Tree => {
+                ensure!(matches!(entry.mode, FileMode::Tree));
+                if let VisitTreeDecision::Descend = self.callbacks.on_tree(&Visit {
+                    repository: self.repository,
+                    path,
+                    oid: entry.oid,
+                    extra: VisitTree,
+                })? {
+                    let mut first = true;
+                    for entry in obj.into_tree().unwrap().iter() {
+                        match ShadowTreeEntryName::decode(entry.name().unwrap())? {
+                            ShadowTreeEntryName::Marker => {
+                                ensure!(first);
+                                ensure!(entry.filemode() == FileMode::Blob.into());
+                                ensure!(entry.kind().unwrap() == ObjectType::Blob);
+                                self.ensure_blob_is_empty(entry.id())?;
+                            }
+                            ShadowTreeEntryName::Child(name) => {
+                                ensure!(!first);
+                                path.push(name);
+                                self.traverse_from(
+                                    path,
+                                    &Entry {
+                                        mode: decode_entry_filemode(entry.filemode()).unwrap(),
+                                        oid: entry.id(),
+                                    },
+                                )?;
+                                path.pop();
+                            }
+                        }
+                        first = false;
                     }
                 }
-                ObjectType::Tree => {
-                    ensure!(mode == FileMode::Tree.into());
-                    self.traverse_from(path, oid)?;
-                }
-                _ => {
-                    bail!("");
-                }
             }
-            path.pop();
+            _ => {
+                bail!("");
+            }
         }
         Ok(())
     }

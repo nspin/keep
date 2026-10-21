@@ -8,8 +8,8 @@ mod utils;
 
 pub use crate::{
     database::{
-        Database, TraversalCallbacks, Traverser, Visit, VisitLink, VisitShadow, VisitTree,
-        VisitTreeDecision,
+        Database, Entry, TraversalCallbacks, Traverser, Visit, VisitLink, VisitShadow, VisitTree,
+        VisitTreeDecision, decode_entry_filemode,
     },
     paths::{ShadowPath, ShadowPathComponent, ShadowTreeEntryName},
     shadow::{ContentSha256, Shadow},

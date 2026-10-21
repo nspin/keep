@@ -153,9 +153,9 @@ impl<T: Substance> DatabaseFilesystemState<T> {
                     InodeEntry::Link { oid }
                 } else {
                     let executable = if mode == FileMode::Blob.into() {
-                        true
-                    } else if mode == FileMode::BlobExecutable.into() {
                         false
+                    } else if mode == FileMode::BlobExecutable.into() {
+                        true
                     } else {
                         bail!("")
                     };

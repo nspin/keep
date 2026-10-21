@@ -4,7 +4,9 @@ use anyhow::Result;
 use git2::{FileMode, Repository};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use keep::{Database, FilesystemSubstance, ShallowDifferenceSide, Snapshot};
+use keep::{
+    Database, Entry, FilesystemSubstance, ShallowDifferenceSide, Snapshot, decode_entry_filemode,
+};
 
 mod args;
 mod commands;
@@ -54,10 +56,10 @@ impl Args {
                 let substance = self.substance()?;
                 log::info!("taking snapshot of {}", subject.display());
                 let snapshot = Snapshot::take(subject)?;
-                let (mode, tree) = db.plant_snapshot(&snapshot)?;
-                log::info!("snapshot: {:06o},{}", u32::from(mode), tree);
+                let entry = db.plant_snapshot(&snapshot)?;
+                log::info!("snapshot: {}", entry);
                 log::info!("storing snapshot");
-                db.store_snapshot(&substance, tree, subject)?;
+                db.store_snapshot(&substance, &entry, subject)?;
                 let parent = db.repository().head()?.peel_to_commit()?;
                 let big_tree = parent.tree_id();
                 log::info!(
@@ -65,7 +67,7 @@ impl Args {
                     big_tree,
                     relative_path
                 );
-                let new_big_tree = db.append(big_tree, relative_path, mode, tree, *force)?;
+                let new_big_tree = db.append(big_tree, relative_path, &entry, *force)?;
                 let commit =
                     db.commit_simple("x", &db.repository().find_tree(new_big_tree)?, &parent)?;
                 log::info!("new commit is {}. merging --ff-only into HEAD", commit);
@@ -74,14 +76,18 @@ impl Args {
             Command::TakeSnapshot { subject } => {
                 let db = self.database()?;
                 let snapshot = Snapshot::take(subject)?;
-                let (mode, tree) = db.plant_snapshot(&snapshot)?;
-                println!("{:06o},{}", u32::from(mode), tree)
+                let entry = db.plant_snapshot(&snapshot)?;
+                println!("{entry}")
             }
-            Command::StoreSnapshot { tree, subject } => {
+            Command::StoreSnapshot {
+                mode,
+                object,
+                subject,
+            } => {
                 let db = self.database()?;
                 let substance = self.substance()?;
-                let tree = db.resolve_treeish(tree)?;
-                db.store_snapshot(&substance, tree, subject)?;
+                let entry = parse_entry(&db, mode, object)?;
+                db.store_snapshot(&substance, &entry, subject)?;
             }
             Command::Append {
                 big_tree,
@@ -92,10 +98,8 @@ impl Args {
             } => {
                 let db = self.database()?;
                 let big_tree = db.resolve_treeish(big_tree)?;
-                assert_eq!(mode, &format!("{:06o}", u32::from(FileMode::Tree)));
-                let mode = FileMode::Tree;
-                let object = db.resolve_treeish(object)?;
-                let new_tree = db.append(big_tree, relative_path, mode, object, *force)?;
+                let entry = parse_entry(&db, mode, object)?;
+                let new_tree = db.append(big_tree, relative_path, &entry, *force)?;
                 println!("{}", new_tree)
             }
             Command::Remove {
@@ -118,21 +122,21 @@ impl Args {
                 let tree = db.resolve_treeish(tree)?;
                 db.mount(tree, mountpoint, substance, *uid, *gid)?;
             }
-            Command::Check { tree } => {
+            Command::Check { mode, object } => {
                 let db = self.database()?;
-                let tree = db.resolve_treeish(tree)?;
-                db.check(tree)?;
+                let entry = parse_entry(&db, mode, object)?;
+                db.check(&entry)?;
             }
-            Command::CheckContent { tree, deep } => {
+            Command::CheckContent { mode, object, deep } => {
                 let mut db = self.database()?;
                 let mut substance = self.substance()?;
-                let tree = db.resolve_treeish(tree)?;
-                commands::check_content::run(&mut db, &mut substance, tree, *deep)?;
+                let entry = parse_entry(&db, mode, object)?;
+                commands::check_content::run(&mut db, &mut substance, &entry, *deep)?;
             }
-            Command::UniqueShadows { tree } => {
+            Command::UniqueShadows { mode, object } => {
                 let db = self.database()?;
-                let tree = db.resolve_treeish(tree)?;
-                db.unique_shadows(tree, |path, shadow| {
+                let entry = parse_entry(&db, mode, object)?;
+                db.unique_shadows(&entry, |path, shadow| {
                     println!("{} {}", shadow.content_hash(), path);
                     Ok(())
                 })?;
@@ -162,4 +166,13 @@ impl Args {
         }
         Ok(())
     }
+}
+
+fn parse_entry(db: &Database, mode: &str, oid: &str) -> Result<Entry> {
+    let mode = decode_entry_filemode(i32::from_str_radix(mode, 8).unwrap()).unwrap();
+    let oid = match mode {
+        FileMode::Tree => db.resolve_treeish(oid)?,
+        _ => db.resolve_blobish(oid)?,
+    };
+    Ok(Entry { mode, oid })
 }

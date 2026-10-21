@@ -41,10 +41,13 @@ pub enum Command {
         subject: PathBuf,
     },
     StoreSnapshot {
-        tree: String,
+        #[arg(long, short = 'm', default_value = "040000")]
+        mode: String,
+        object: String,
         subject: PathBuf,
     },
     Append {
+        #[arg(long, short = 'm', default_value = "040000")]
         mode: String,
         object: String,
         relative_path: ShadowPath,
@@ -68,18 +71,24 @@ pub enum Command {
         gid: u32,
     },
     Check {
+        #[arg(long, short = 'm', default_value = "040000")]
+        mode: String,
         #[arg(default_value = "HEAD")]
-        tree: String,
+        object: String,
     },
     CheckContent {
+        #[arg(long, short = 'm', default_value = "040000")]
+        mode: String,
         #[arg(default_value = "HEAD")]
-        tree: String,
+        object: String,
         #[arg(long)]
         deep: bool,
     },
     UniqueShadows {
+        #[arg(long, short = 'm', default_value = "040000")]
+        mode: String,
         #[arg(default_value = "HEAD")]
-        tree: String,
+        object: String,
     },
     #[command(about = "Default: HEAD _ or HEAD^ HEAD.")]
     Diff {

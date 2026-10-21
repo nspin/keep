@@ -1,7 +1,9 @@
-use anyhow::{Error, Result};
-use git2::{Commit, Oid, Repository, Signature, Tree};
+use std::fmt;
 
-use crate::{ShallowDifference, shallow_diff};
+use anyhow::{Error, Result};
+use git2::{Commit, FileMode, Oid, Repository, Signature, Tree, TreeBuilder, TreeEntry};
+
+use crate::{ShadowPathComponent, ShallowDifference, shallow_diff};
 
 mod append;
 mod fs;
@@ -24,6 +26,15 @@ impl Database {
 
     pub fn repository(&self) -> &Repository {
         &self.repository
+    }
+
+    pub fn resolve_blobish(&self, blobish: &str) -> Result<Oid> {
+        // TODO validate blobish?
+        Ok(self
+            .repository()
+            .revparse_single(blobish)?
+            .peel_to_blob()?
+            .id())
     }
 
     pub fn resolve_treeish(&self, treeish: &str) -> Result<Oid> {
@@ -71,4 +82,40 @@ impl Database {
         head.set_target(new, "keep: fast-forward")?; // fails if HEAD moved since it was read
         Ok(())
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Entry {
+    pub mode: FileMode,
+    pub oid: Oid,
+}
+
+impl Entry {
+    fn insert_into_builder<'a>(
+        &self,
+        builder: &'a mut TreeBuilder<'_>,
+        name: &ShadowPathComponent,
+    ) -> Result<TreeEntry<'a>, git2::Error> {
+        builder.insert(name.encode(), self.oid, self.mode.into())
+    }
+}
+
+impl fmt::Display for Entry {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{:06o},{}", u32::from(self.mode), self.oid)
+    }
+}
+
+pub fn decode_entry_filemode(raw: i32) -> Option<FileMode> {
+    Some(if raw == FileMode::Tree.into() {
+        FileMode::Tree
+    } else if raw == FileMode::Link.into() {
+        FileMode::Link
+    } else if raw == FileMode::Blob.into() {
+        FileMode::Blob
+    } else if raw == FileMode::BlobExecutable.into() {
+        FileMode::BlobExecutable
+    } else {
+        return None;
+    })
 }
