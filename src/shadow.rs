@@ -9,11 +9,11 @@ use thiserror::Error;
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Shadow {
     content_hash: ContentHash,
-    content_size: Option<u64>,
+    content_size: u64,
 }
 
 impl Shadow {
-    pub fn new(content_hash: ContentHash, content_size: Option<u64>) -> Self {
+    pub fn new(content_hash: ContentHash, content_size: u64) -> Self {
         Self {
             content_hash,
             content_size,
@@ -24,7 +24,7 @@ impl Shadow {
         &self.content_hash
     }
 
-    pub fn content_size(&self) -> Option<u64> {
+    pub fn content_size(&self) -> u64 {
         self.content_size
     }
 
@@ -41,9 +41,7 @@ impl Shadow {
 impl fmt::Display for Shadow {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         writeln!(fmt, "sha256 {}", self.content_hash)?;
-        if let Some(content_size) = self.content_size {
-            writeln!(fmt, "size {}", content_size)?;
-        }
+        writeln!(fmt, "size {}", self.content_size)?;
         Ok(())
     }
 }
@@ -57,7 +55,7 @@ impl FromStr for Shadow {
                 r"(?x)
                 ^
                 sha256\ (?P<sha256>[a-z0-9]{64})\n
-                (size\ (?P<size>[0-9]+)\n)?
+                size\ (?P<size>[0-9]+)\n
                 $
                 "
             )
@@ -66,10 +64,8 @@ impl FromStr for Shadow {
         let caps = RE.captures(s).ok_or(Self::Err::MalformedShadow)?;
         Ok(Self {
             content_hash: caps["sha256"].parse()?,
-            content_size: caps
-                .name("size")
-                .map(|m| m.as_str().parse())
-                .transpose()
+            content_size: caps["size"]
+                .parse()
                 .map_err(Self::Err::MalformedShadowSize)?,
         })
     }

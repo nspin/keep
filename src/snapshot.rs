@@ -76,7 +76,7 @@ impl Snapshot {
                     meta.check(&file_path)?;
                     let content_hash = path_sha256sum(&file_path)?;
                     (p)();
-                    Ok(Shadow::new(content_hash, Some(meta.size)))
+                    Ok(Shadow::new(content_hash, meta.size))
                 })
             },
         )

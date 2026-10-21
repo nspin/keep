@@ -16,13 +16,11 @@ pub(crate) fn run(
     let mut ok = true;
     let mut total_bytes = 0;
     db.unique_shadows(tree, |path, blob| {
-        if blob.content_size().is_none() {
-            log::warn!("missing size: {} {}", blob.content_hash(), path);
-        }
         if !substance.have_blob(blob.content_hash()) {
             log::error!("missing blob: {} {}", blob.content_hash(), path);
             ok = false;
-        } else if let Some(size) = blob.content_size() {
+        } else {
+            let size = blob.content_size();
             total_bytes += size;
             if !substance.check_blob_size(blob.content_hash(), size).is_ok() {
                 log::error!(
@@ -60,9 +58,7 @@ pub(crate) fn run(
                 log::error!("blob content mismatch: {} {}", blob.content_hash(), path);
             }
             i += 1;
-            if let Some(size) = blob.content_size() {
-                cur_b += size;
-            }
+            cur_b += blob.content_size();
             if i % 1000 == 0 {
                 let cur_mb = b_to_mb(cur_b);
                 let d_mb = b_to_mb(cur_b - prev_b);
