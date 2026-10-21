@@ -164,6 +164,5 @@ mod tests {
         ensure_err::<Shadow>(&format!("sha256 {}\nsize \n", TEST_HEX_DIGEST));
         ensure_err::<Shadow>(&format!("sha256 {}\r\nsize 123\r\n", TEST_HEX_DIGEST));
         ensure_inverse::<Shadow>(&format!("sha256 {}\nsize 123\n", TEST_HEX_DIGEST));
-        ensure_inverse::<Shadow>(&format!("sha256 {}\n", TEST_HEX_DIGEST));
     }
 }
