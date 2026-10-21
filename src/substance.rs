@@ -48,9 +48,9 @@ impl FilesystemSubstance {
     }
 
     fn blob_relative_path(blob: &ContentSha256) -> (String, String) {
-        let mut hex = blob.to_hex();
-        let child = hex.split_off(Self::SPLIT);
-        (hex, child)
+        let hex = blob.to_hex();
+        let (parent, child) = hex.split_at(Self::SPLIT);
+        (parent.to_owned(), child.to_owned())
     }
 
     fn blob_parent(&self, blob: &ContentSha256) -> PathBuf {
@@ -59,13 +59,7 @@ impl FilesystemSubstance {
     }
 
     fn partial_path(&self, blob: &ContentSha256) -> PathBuf {
-        let (parent, child) = Self::blob_relative_path(blob);
-        self.partial_dir().join(&parent).join(&child)
-    }
-
-    fn partial_parent(&self, blob: &ContentSha256) -> PathBuf {
-        let (parent, _child) = Self::blob_relative_path(blob);
-        self.partial_dir().join(&parent)
+        self.partial_dir().join(blob.to_hex())
     }
 }
 
@@ -84,10 +78,7 @@ impl Substance for FilesystemSubstance {
         let partial_path = self.partial_path(blob);
 
         assert!(src.is_file());
-        let mut source_file = OpenOptions::new().read(true).open(src)?;
-
-        let partial_parent = self.partial_parent(blob);
-        ensure_dir_exists(&partial_parent)?;
+        let mut src_file = OpenOptions::new().read(true).open(src)?;
 
         let mut partial_file = OpenOptions::new()
             .create_new(true)
@@ -97,7 +88,7 @@ impl Substance for FilesystemSubstance {
         // NOTE
         // On Linux, io::copy is specialized to use copy_file_range. On MacOS, fs::copy is
         // specialized to use fclonefileat and fcopyfile, but io::copy has not been specialized yet.
-        io::copy(&mut source_file, &mut partial_file)?;
+        io::copy(&mut src_file, &mut partial_file)?;
 
         partial_file.set_permissions(Permissions::from_mode(0o444))?;
 
