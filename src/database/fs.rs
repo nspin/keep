@@ -32,6 +32,12 @@ impl Database {
         uid: u32,
         gid: u32,
     ) -> Result<()> {
+        // libfuse is weakly linked on macOS, so calling into it without macFUSE would segfault
+        #[cfg(target_os = "macos")]
+        ensure!(
+            Path::new("/usr/local/lib/libfuse.2.dylib").exists(),
+            "mounting requires macFUSE, which is not installed"
+        );
         let mount_options = vec![
             MountOption::RO,
             MountOption::NoDev,

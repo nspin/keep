@@ -42,6 +42,11 @@
           # On Darwin, fuse is macfuse-stubs, so test binaries can't load without a system macFUSE
           doCheck = !pkgs.stdenv.isDarwin;
 
+          # Likewise, weakly link libfuse so that only `keep mount` needs a system macFUSE
+          env = pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+            RUSTFLAGS = "-C link-arg=-Wl,-weak-lfuse";
+          };
+
           nativeBuildInputs = with pkgs; [
             pkg-config
             makeWrapper
