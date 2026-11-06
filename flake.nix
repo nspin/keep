@@ -39,6 +39,9 @@
 
           cargoLock.lockFile = ./Cargo.lock;
 
+          # On Darwin, fuse is macfuse-stubs, so test binaries can't load without a system macFUSE
+          doCheck = !pkgs.stdenv.isDarwin;
+
           nativeBuildInputs = with pkgs; [
             pkg-config
             makeWrapper
