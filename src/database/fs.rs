@@ -13,7 +13,7 @@ use anyhow::{Result, bail, ensure};
 use fuser::{
     Config, Errno, FileAttr, FileHandle, FileType, Filesystem, FopenFlags, Generation, INodeNo,
     LockOwner, MountOption, OpenFlags, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty,
-    ReplyEntry, ReplyOpen, Request,
+    ReplyEntry, ReplyOpen, Request, SessionACL,
 };
 use git2::{FileMode, ObjectType, Oid, Repository, TreeEntry};
 use itertools::Itertools;
@@ -33,18 +33,18 @@ impl Database {
         gid: u32,
     ) -> Result<()> {
         let mount_options = vec![
+            MountOption::FSName(FS_NAME.to_string()),
+            MountOption::AutoUnmount,
             MountOption::RO,
             MountOption::NoDev,
             MountOption::NoExec,
             MountOption::NoAtime,
             MountOption::Sync,
             MountOption::DirSync,
-            MountOption::FSName(FS_NAME.to_string()),
-            // TODO
-            // MountOption::AutoUnmount
         ];
         let mut config = Config::default();
         config.mount_options = mount_options;
+        config.acl = SessionACL::All;
         let fs = DatabaseFilesystem::new(self.repository, tree, substance, uid, gid);
         fuser::mount(fs, mountpoint, &config)?;
         Ok(())
